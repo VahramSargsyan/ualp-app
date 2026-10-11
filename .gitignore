@@ -1,0 +1,12 @@
+.clasprc.json
+.env
+.env.*
+*.secret
+*.credentials.json
+node_modules/
+.DS_Store
+coverage/
+dist/
+/tmp/
+private/
+exports/
