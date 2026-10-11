@@ -1,0 +1,7 @@
+{
+  "name": "ualp-app",
+  "version": "0.1.0-dev",
+  "private": true,
+  "scripts": {"test": "bash scripts/run_local_tests.sh"},
+  "engines": {"node": ">=18"}
+}

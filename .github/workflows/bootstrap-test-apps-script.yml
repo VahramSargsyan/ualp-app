@@ -1,0 +1,179 @@
+name: Bootstrap UALP TEST Apps Script
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/mvp-assessment-runtime
+    paths:
+      - '.github/workflows/bootstrap-test-apps-script.yml'
+      - 'bootstrap-triggers/apps-script-test.txt'
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check clasp authorization
+        id: auth
+        shell: bash
+        env:
+          CLASPRC_JSON_B64: ${{ secrets.CLASPRC_JSON_B64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CLASPRC_JSON_B64:-}" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## UALP TEST Apps Script bootstrap"
+              echo
+              echo "**AUTH_REQUIRED**"
+              echo
+              echo "Repository secret `CLASPRC_JSON_B64` is not configured."
+              echo "No Apps Script project was created and no Google runtime was mutated."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          printf '%s' "$CLASPRC_JSON_B64" | base64 --decode > "$HOME/.clasprc.json"
+          chmod 600 "$HOME/.clasprc.json"
+          echo "available=true" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare isolated runtime source
+        if: steps.auth.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUNTIME_DIR="$RUNNER_TEMP/ualp-test-runtime"
+          rm -rf "$RUNTIME_DIR"
+          mkdir -p "$RUNTIME_DIR"
+          cp src/*.gs "$RUNTIME_DIR/"
+          cp src/*.html "$RUNTIME_DIR/"
+          cp src/appsscript.json "$RUNTIME_DIR/"
+          echo "RUNTIME_DIR=$RUNTIME_DIR" >> "$GITHUB_ENV"
+
+      - name: Create TEST Apps Script project
+        if: steps.auth.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNTIME_DIR"
+          rm -f .clasp.json
+          output="$(npx --yes @google/clasp@3.4.1 create-script --type webapp --title "UALP TEST" --json)"
+          printf '%s\n' "$output"
+          test -f .clasp.json
+          SCRIPT_ID="$(node -e "const f=require('./.clasp.json'); if(!f.scriptId) process.exit(2); process.stdout.write(f.scriptId)")"
+          echo "UALP_SCRIPT_ID=$SCRIPT_ID" >> "$GITHUB_ENV"
+
+          # create-script pulls its own manifest; restore the exact repository manifest.
+          cp "$GITHUB_WORKSPACE/src/appsscript.json" "$RUNTIME_DIR/appsscript.json"
+          cp "$GITHUB_WORKSPACE"/src/*.gs "$RUNTIME_DIR/"
+          cp "$GITHUB_WORKSPACE"/src/*.html "$RUNTIME_DIR/"
+
+      - name: Push exact candidate source
+        if: steps.auth.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNTIME_DIR"
+          npx --yes @google/clasp@3.4.1 push --force
+
+      - name: Pull back and verify source equality
+        if: steps.auth.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERIFY_DIR="$RUNNER_TEMP/ualp-test-verify"
+          mkdir -p "$VERIFY_DIR"
+          cp "$RUNTIME_DIR/.clasp.json" "$VERIFY_DIR/.clasp.json"
+          (cd "$VERIFY_DIR" && npx --yes @google/clasp@3.4.1 pull)
+          export EXPECTED="$RUNTIME_DIR" ACTUAL="$VERIFY_DIR"
+          node <<'NODE'
+          const fs=require('fs'),path=require('path'),crypto=require('crypto');
+          const allowed=n=>n==='appsscript.json'||/\.(?:gs|html)$/.test(n);
+          const list=d=>fs.readdirSync(d).filter(allowed).sort();
+          const a=list(process.env.EXPECTED),b=list(process.env.ACTUAL);
+          if(JSON.stringify(a)!==JSON.stringify(b)) throw new Error('remote file set mismatch');
+          const h=p=>crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+          const bad=a.filter(n=>h(path.join(process.env.EXPECTED,n))!==h(path.join(process.env.ACTUAL,n)));
+          if(bad.length) throw new Error('remote source mismatch: '+bad.join(', '));
+          console.log('Exact source round-trip PASS');
+          NODE
+
+      - name: Create TEST web app deployment
+        if: steps.auth.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNTIME_DIR"
+          output="$(npx --yes @google/clasp@3.4.1 create-deployment --description "UALP TEST exact $GITHUB_SHA")"
+          printf '%s\n' "$output"
+          DEPLOYMENT_ID="$(printf '%s\n' "$output" | sed -nE 's/.*- ([A-Za-z0-9_-]+) @.*/\1/p' | tail -1)"
+          VERSION="$(printf '%s\n' "$output" | sed -nE 's/.* @([0-9]+).*/\1/p' | tail -1)"
+          if [ -z "$DEPLOYMENT_ID" ]; then
+            # Fallback to latest non-head deployment from list output.
+            list="$(npx --yes @google/clasp@3.4.1 list-deployments)"
+            printf '%s\n' "$list"
+            DEPLOYMENT_ID="$(printf '%s\n' "$list" | sed -nE 's/^- ([A-Za-z0-9_-]+) @([0-9]+).*/\1/p' | tail -1)"
+            VERSION="$(printf '%s\n' "$list" | sed -nE 's/^- ([A-Za-z0-9_-]+) @([0-9]+).*/\2/p' | tail -1)"
+          fi
+          test -n "$DEPLOYMENT_ID"
+          WEB_APP_URL="https://script.google.com/macros/s/$DEPLOYMENT_ID/exec"
+          echo "UALP_DEPLOYMENT_ID=$DEPLOYMENT_ID" >> "$GITHUB_ENV"
+          echo "UALP_DEPLOY_VERSION=${VERSION:-unknown}" >> "$GITHUB_ENV"
+          echo "UALP_WEB_APP_URL=$WEB_APP_URL" >> "$GITHUB_ENV"
+
+      - name: Write bootstrap receipt
+        if: steps.auth.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          RECEIPT_DIR="$RUNNER_TEMP/ualp-test-bootstrap-receipt"
+          mkdir -p "$RECEIPT_DIR"
+          export RECEIPT_DIR
+          node <<'NODE'
+          const fs=require('fs');
+          const receipt={
+            environment:'TEST',
+            gitCommit:process.env.GITHUB_SHA,
+            scriptId:process.env.UALP_SCRIPT_ID,
+            deploymentId:process.env.UALP_DEPLOYMENT_ID,
+            deploymentVersion:process.env.UALP_DEPLOY_VERSION,
+            webAppUrl:process.env.UALP_WEB_APP_URL,
+            sourceRoundTripVerified:true,
+            databaseConfiguration:'NOT_CONFIGURED',
+            productionTouched:false
+          };
+          fs.writeFileSync(process.env.RECEIPT_DIR+'/TEST_APPS_SCRIPT_BOOTSTRAP_RECEIPT.json',JSON.stringify(receipt,null,2)+'\n');
+          console.log(receipt);
+          NODE
+          {
+            echo "## UALP TEST Apps Script bootstrap"
+            echo
+            echo "**BOOTSTRAP_CREATED**"
+            echo
+            echo "Commit: `$GITHUB_SHA`"
+            echo
+            echo "Web App: $UALP_WEB_APP_URL"
+            echo
+            echo "Database configuration is still NOT_CONFIGURED."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "RECEIPT_DIR=$RECEIPT_DIR" >> "$GITHUB_ENV"
+
+      - name: Upload bootstrap receipt
+        if: steps.auth.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ualp-test-apps-script-bootstrap-${{ github.run_id }}
+          path: ${{ env.RECEIPT_DIR }}/
+          retention-days: 30
+          if-no-files-found: error
