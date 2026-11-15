@@ -1,0 +1,28 @@
+name: UALP PostgreSQL candidate checks
+on:
+  push:
+    branches: ['feature/ualp-mvp-001-postgres-test']
+  pull_request:
+    paths: ['webapp/**','tests/**','migrations/**','requirements*.txt']
+jobs:
+  tests:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements-dev.txt
+      - run: python -m compileall -q webapp
+      - run: python -m pytest -q
+      - name: Verify no Apps Script and no committed credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! find webapp -type f \( -name '*.gs' -o -name 'appsscript.json' \) | grep .
+          if grep -RIEe '-----BEGIN (RSA|OPENSSH|PRIVATE) KEY-----|ghp_[A-Za-z0-9]{30}|postgres(ql)?://[^[:space:]]+:[^[:space:]]+@' webapp tests; then
+            echo 'Potential credential found'; exit 1
+          fi
