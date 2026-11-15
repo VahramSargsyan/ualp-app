@@ -171,7 +171,7 @@ def submit(data: Submission, url: str = Depends(authorized)):
     digest = hashlib.sha256(json.dumps(
         sorted(answer_map.items()), ensure_ascii=False, separators=(",", ":")
     ).encode("utf-8")).hexdigest()
-    request_id = str(data.requestId)
+    request_id = data.requestId
     with connect(url) as conn:
         old = conn.execute(
             """SELECT run_id,form_id,payload_sha256 FROM ualp_assessment_runs
@@ -213,7 +213,7 @@ def submit(data: Submission, url: str = Depends(authorized)):
             computed = compute_scores(answer_map, option_map, links, rules)
         except ValueError:
             raise HTTPException(503, "Pilot scoring catalog has not passed consistency checks")
-        run_id = str(uuid.uuid4())
+        run_id = uuid.uuid4()
         try:
             with conn.transaction():
                 conn.execute(
@@ -251,4 +251,4 @@ def submit(data: Submission, url: str = Depends(authorized)):
 @app.get("/api/runs/{run_id}")
 def result(run_id: uuid.UUID, url: str = Depends(authorized)):
     with connect(url) as conn:
-        return stored_result(conn, str(run_id))
+        return stored_result(conn, run_id)
