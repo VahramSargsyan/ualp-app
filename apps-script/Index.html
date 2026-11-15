@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>UALP — исследовательский TEST</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#15243b;background:#f4f6fa}
+    *{box-sizing:border-box}body{margin:0}main{max-width:760px;margin:0 auto;padding:20px 15px 65px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:24px}
+    h1{font-size:1.5rem;margin:0}h2{font-size:1.22rem;line-height:1.35}
+    .card{background:white;border:1px solid #e2e7ef;border-radius:16px;padding:22px;margin-bottom:15px;box-shadow:0 3px 15px #203b6010}
+    .muted{color:#54657b;font-size:.91rem}.pill{font-size:.78rem;border-radius:30px;background:#e9edf5;padding:6px 10px;white-space:nowrap}
+    .alert{padding:13px 14px;border-radius:12px;background:#fff5e3;border:1px solid #efdcbb;color:#6b4a18}
+    .error{color:#9b2323;background:#fff1f1;padding:11px;border-radius:9px}
+    button{font:inherit;min-height:47px;border-radius:11px;border:1px solid #bbc9d7;padding:10px 18px;cursor:pointer;background:white}
+    button.primary{background:#235caa;color:white;border-color:#235caa}
+    button:disabled{opacity:.5;cursor:default}
+    .actions{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:22px}
+    label.choice{display:flex;align-items:center;gap:13px;min-height:56px;border:1px solid #d6dee9;padding:12px;border-radius:12px;margin:11px 0;cursor:pointer}
+    label.choice:has(input:checked){border-color:#235caa;background:#eef5ff}
+    input[type=radio]{width:21px;height:21px;flex-shrink:0;accent-color:#235caa}
+    progress{width:100%;height:12px;accent-color:#235caa}
+    .scores{list-style:none;padding:0}.scores li{border-bottom:1px solid #e2e7ef;padding:12px 2px;display:flex;justify-content:space-between;gap:12px}
+    .score{font-variant-numeric:tabular-nums;font-weight:700}
+    [hidden]{display:none!important}
+  </style>
+</head>
+<body>
+<main>
+  <header><h1>UALP <span class="muted">/ Исследовательский пилот</span></h1><span class="pill">TEST · 0.1.0-dev</span></header>
+  <div class="alert" id="warning">Тестовая самооценка, не профессиональный диагноз. Переводы и психометрические характеристики ещё не утверждены. Результаты не предназначены для найма или других значимых решений.</div>
+  <section class="card" id="welcome">
+    <h2>Исследование профессиональных интересов и ценностей</h2>
+    <p>Ответы будут сохранены в отдельной тестовой базе. Это закрытый пилот только для владельца проекта.</p>
+    <label><input type="checkbox" id="consent"> Я понимаю экспериментальный характер теста и согласен сохранить мои ответы в TEST.</label>
+    <div class="actions"><span class="muted">Пожалуйста, отвечайте исходя из собственного опыта.</span><button class="primary" id="start" disabled>Начать</button></div>
+  </section>
+  <section class="card" id="question" hidden>
+    <div class="muted" id="progressLabel"></div><progress id="bar" value="0" max="1"></progress>
+    <h2 id="prompt"></h2><div id="choices"></div><div class="muted" id="localeNote"></div>
+    <div class="actions"><button id="prev">Назад</button><button class="primary" id="next">Далее</button></div>
+  </section>
+  <section class="card" id="result" hidden>
+    <h2>Результаты сохранены</h2>
+    <p class="muted">Показаны только сырые показатели экспериментальной формы; без выводов о пригодности к профессии.</p>
+    <ul class="scores" id="scoreList"></ul>
+    <p class="muted" id="runRef"></p>
+  </section>
+  <p role="status" id="status" aria-live="polite"></p>
+</main>
+<script>
+(function(){
+  'use strict';
+  var state={runId:'',form:null,position:0,answers:{},startId:'',submitId:'',busy:false};
+  var el=function(id){return document.getElementById(id);};
+  function requestId(){return 'ualp_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,12)+'_'+Math.random().toString(36).slice(2,12);}
+  function status(message,error){var p=el('status');p.textContent=message||'';p.className=error?'error':'muted';}
+  function show(id){['welcome','question','result'].forEach(function(k){el(k).hidden=k!==id;});}
+  function busy(v){state.busy=v;el('start').disabled=v||!el('consent').checked;el('next').disabled=v;el('prev').disabled=v;}
+  function fail(e){busy(false);status((e&&e.message)||'Не удалось завершить операцию. Попробуйте повторить.',true);}
+  function render(){
+    var form=state.form, item=form.items[state.position];
+    show('question');
+    el('progressLabel').textContent='Вопрос '+(state.position+1)+' из '+form.items.length;
+    el('bar').max=form.items.length;el('bar').value=state.position+1;
+    el('prompt').textContent=item.prompt;
+    var root=el('choices');root.replaceChildren();
+    item.assetUrls.forEach(function(uri){var img=document.createElement('img');img.src=uri;img.alt='Иллюстрация к вопросу';img.style.maxWidth='100%';root.appendChild(img);});
+    item.options.forEach(function(opt){
+      var label=document.createElement('label');label.className='choice';
+      var input=document.createElement('input');input.type='radio';input.name='answer';
+      input.value=opt.id;input.checked=state.answers[item.itemId]===opt.id;
+      input.addEventListener('change',function(){state.answers[item.itemId]=opt.id;status('');});
+      var text=document.createElement('span');text.textContent=opt.label;
+      label.append(input,text);root.appendChild(label);
+    });
+    el('prev').disabled=state.busy||state.position===0;
+    el('next').textContent=state.position===form.items.length-1?'Сохранить результат':'Далее';
+    el('localeNote').textContent=form.localizationFallbackCount ?
+      'Для '+form.localizationFallbackCount+' вопросов использован исходный язык.' : '';
+  }
+  function finish(){
+    if(state.busy)return;
+    var answers=state.form.items.map(function(item){return {itemId:item.itemId,optionId:state.answers[item.itemId]};});
+    if(answers.some(function(x){return !x.optionId;})){status('Ответьте на все вопросы.',true);return;}
+    if(!state.submitId)state.submitId=requestId();
+    busy(true);status('Сохраняю и вычисляю результаты...');
+    google.script.run.withSuccessHandler(function(data){
+      busy(false);show('result');el('scoreList').replaceChildren();
+      data.scores.forEach(function(s){
+        var li=document.createElement('li'),title=document.createElement('span'),value=document.createElement('span');
+        title.textContent=s.scaleName||s.scaleKey||s.scaleId;value.className='score';value.textContent=String(s.rawScore);
+        li.append(title,value);el('scoreList').appendChild(li);
+      });
+      el('runRef').textContent='Версия расчёта: '+data.algorithmVersion+' · Код результата: '+data.assessmentRunId;
+      status('Данные сохранены в закрытом TEST.');
+    }).withFailureHandler(fail).submitAssessment({clientRequestId:state.submitId,assessmentRunId:state.runId,responses:answers});
+  }
+  el('consent').addEventListener('change',function(){el('start').disabled=!this.checked||state.busy;});
+  el('start').addEventListener('click',function(){
+    if(!el('consent').checked||state.busy)return;
+    if(!state.startId)state.startId=requestId();
+    busy(true);status('Открываю форму...');
+    google.script.run.withSuccessHandler(function(data){
+      busy(false);state.runId=data.assessmentRunId;state.form=data.form;state.position=0;
+      status('');render();
+    }).withFailureHandler(fail).startAssessment({clientRequestId:state.startId});
+  });
+  el('prev').addEventListener('click',function(){if(state.busy)return;if(state.position>0){state.position--;render();}});
+  el('next').addEventListener('click',function(){
+    if(state.busy)return;
+    var item=state.form.items[state.position];
+    if(!state.answers[item.itemId]){status('Выберите один ответ.',true);return;}
+    if(state.position===state.form.items.length-1)finish();
+    else{state.position++;status('');render();}
+  });
+})();
+</script>
+</body>
+</html>
