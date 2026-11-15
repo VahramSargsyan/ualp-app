@@ -13,7 +13,8 @@ Render workspace: My Workspace (tea-d1r9ktmmcj7s73am6c10)
 Render plan: FREE
 Render region: Frankfurt
 Auto deploy: OFF
-Render deploy: dep-dbsr7q6k1f9s73a2rog0
+Render initial deploy: dep-dbsr7q6k1f9s73a2rog0 (LIVE, SHA b5398cb972e5e91897c998409d7ae283e56fd847)
+Render environment-only redeploy: dep-dbsra6u7bikc73c94b4g (source SHA d08c0b59723d61c5c8bebf068c0d7e936d1420ef; status pending final verification)
 Render TEST URL: https://ualp-postgres-private-test.onrender.com
 Neon project: snowy-leaf-35157339 (ualp-postgres-test)
 Neon database: ualp_test, PostgreSQL 18.7, Free organization
@@ -29,9 +30,9 @@ Neon database: ualp_test, PostgreSQL 18.7, Free organization
 
 ## Blocking env configuration
 
-The sensitive Neon DATABASE_URL could not be transferred to Render via connected tools because the host safety layer blocked credential transmission between services. The block was not bypassed. Render was created WITHOUT DATABASE_URL and UALP_ACCESS_KEY; non-secret UALP_ENV=TEST is set.
+The sensitive Neon DATABASE_URL could not be transferred to Render via connected tools because the host safety layer blocked credential transmission between services. The block was not bypassed. Render was created WITHOUT DATABASE_URL and UALP_ACCESS_KEY; non-secret UALP_ENV=TEST was set. After the initial successful shell deployment, a fresh owner-only UALP_ACCESS_KEY was generated locally and added directly using the Render environment configuration tool. This triggered a second deployment. The **only** remaining missing variable is DATABASE_URL, which the owner must copy directly from Neon Console to Render Environment. Access key value is never stored in this public repository.
 
-The web server is LIVE, but private assessment APIs are intentionally unavailable until BOTH environment variables are set in Render's Environment settings by the owner. Never paste secrets into GitHub, issues, PR comments or public source. Use the Neon console Connect dialog for the pooled postgresql:// URL targeting the dedicated ualp_test database. Generate the owner key separately; never reuse a real password.
+The web server is LIVE, but private assessment APIs are intentionally unavailable until DATABASE_URL is set by the owner in Render's Environment settings (UALP_ACCESS_KEY is already set). Never paste secrets into GitHub, issues, PR comments or public source. Use the Neon console Connect dialog for the pooled postgresql:// URL targeting the dedicated ualp_test database. Generate the owner key separately; never reuse a real password.
 
 ## NOT_RUN / next gate
 
