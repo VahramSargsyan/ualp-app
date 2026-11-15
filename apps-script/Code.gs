@@ -182,8 +182,10 @@ function ualpScoringFromBundle_(data, safeForm, responses) {
     if (ualpSame_(rule.validationStatus, 'BLOCKED')) ualpFail_('UALP_SCORING_BLOCKED', 'Scoring validation has not passed');
     var rel = links.filter(function(l){ return ualpSame_(l.scaleId, rule.scaleId); });
     if (rel.length < Number(rule.minAnsweredItems) || !rel.length) ualpFail_('UALP_SCALE_COVERAGE', 'Not enough items for scale');
-    var sum = 0;
+    var sum = 0, seenScaleItems = {};
     rel.forEach(function(l) {
+      if (seenScaleItems[l.itemId]) ualpFail_('UALP_DUPLICATE_SCALE_LINK','One scale must not link the same item twice');
+      seenScaleItems[l.itemId] = true;
       var chosen = byItem[l.itemId], value, opt;
       if (chosen.optionType === 'ITEM_OPTION') {
         opt = ualpFindOne_(data.ItemOptions, 'itemOptionId', chosen.optionId);
@@ -412,6 +414,7 @@ function submitAssessment(input) {
     if (!ualpSame_(rec.value.assessmentFormId,form.assessmentFormId)
         || !ualpSame_(rec.value.formVersion,form.formVersion)) ualpFail_('UALP_VERSION_CHANGED','Run uses another form version');
     if (ualpSame_(rec.value.status,'COMPLETED')) {
+      if (!ualpSame_(rec.value.clientSubmitRequestId,requestId)) ualpFail_('UALP_RUN_ALREADY_COMPLETED','This run was submitted using another request ID');
       var previous=ualpReadStoredScores_(db.runtime,runId,bundle);
       if (previous.length !== computed.scores.length) ualpFail_('UALP_INCOMPLETE_COMMIT','Stored score count mismatch');
       return ualpPublicResult_(runId,previous);
