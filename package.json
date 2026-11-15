@@ -1,0 +1,13 @@
+{
+  "name": "ualp-mvp-001",
+  "private": true,
+  "version": "0.1.0-dev",
+  "description": "Static and deterministic tests for the owner-only Google Apps Script UALP MVP",
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "check": "npm test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
