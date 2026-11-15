@@ -21,11 +21,11 @@ LAST_DECISION: 2026-11-15 — owner explicitly rejected Apps Script and selected
 - Atomic persisted answers/scores, reproducible versioned scoring and retry idempotency.
 - Schema migration+rollback for later changes, no resetting real user data.
 - No PROD or public respondent access without separate explicit authorization.
-- Deployment gates: local tests => real Neon TEST => exact Render TEST => human acceptance.
+- Deployment gates: local tests => isolated Neon TEST => exact Vercel Hobby Preview runtime => human acceptance. Vercel PROD is not authorized.
 
 CURRENT_MODE: BUILD_NEW_APP
 CURRENT_CAPABILITY: UALP-MVP-001
 CURRENT_BOUNDARY: one owner + one Work Values form + persisted score
 TEST_DATABASE: Neon Free project snowy-leaf-35157339 / ualp_test
 PROD: NOT_CONFIGURED / NOT_AUTHORIZED
-TEST_APP: NOT_DEPLOYED
+TEST_APP: VERCEL_PREVIEW_PENDING. The earlier Render Free shell is superseded but not automatically deleted.
