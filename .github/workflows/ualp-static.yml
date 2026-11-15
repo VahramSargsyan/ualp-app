@@ -1,0 +1,32 @@
+name: UALP-MVP-001 Static & Deterministic
+on:
+  push:
+    branches:
+      - 'feature/ualp-mvp-001-*'
+  pull_request:
+    paths:
+      - 'apps-script/**'
+      - 'tests/**'
+      - 'package.json'
+      - '.github/workflows/ualp-static.yml'
+jobs:
+  node-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript syntax and deterministic GAS mock tests
+        run: npm test
+      - name: Safe-public-repository secret check
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RIE '-----BEGIN (RSA|OPENSSH|PRIVATE) KEY-----|ghp_[A-Za-z0-9]{30}|postgres(ql)?://[^[:space:]]+@' apps-script tests; then
+            echo "Potential committed secret found"
+            exit 1
+          fi
