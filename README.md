@@ -43,5 +43,13 @@ Never commit:
 ## Status
 
 Bootstrap line: `0.1.0-dev`
+Runtime candidate: `feature/ualp-mvp-001-assessment-runtime` (not merged)
+Modules: `apps-script/Code.gs`, `apps-script/Index.html`, `apps-script/appsscript.json`
+Verification: `npm test` (Node VM + mocked Google Apps Script services)
+Installation and real acceptance: `docs/build/UALP_MVP_001_INSTALL_AND_TEST.md`
 TEST deployment: NOT_RUN
 PROD: NOT_CONFIGURED
+
+**Security:** public repository does not mean public assessment service. The Apps Script web app MUST remain owner-only. Store sheet IDs and owner email in Script Properties, not GitHub. Never upload the source workbook, objective answer keys or personal assessment answers as repository data.
+
+**Technology boundary:** UALP-MVP-001 uses the already adopted Google Sheets Assessment Library + separate Google Sheets Runtime DB. An earlier standalone Python/SQL prototype is not the authority for this repository; adopting PostgreSQL requires a separately approved data-contract change.
