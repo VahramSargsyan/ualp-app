@@ -1,47 +1,42 @@
 # UALP — Universal Assessment & Learning Platform
 
-UALP is designed around a closed growth loop:
+Product loop: Assessment → Profile → Career/Role Fit → Learning Path → Practice → Reassessment → Growth.
 
-`Assessment -> Profile -> Career/Role Fit -> Learning Path -> Practice -> Reassessment -> Growth`
+## Current PostgreSQL candidate
 
-## Current state
+**Owner decision (2026-11-15): use a normal PostgreSQL database and free infrastructure, not Google Apps Script.**
 
-This repository is the runtime/code home for the UALP MVP. The canonical assessment-content database is a separate Google Sheet and is intentionally **not copied into this repository**.
+This branch is a bounded private TEST implementation (not accepted into main or PROD).
+- `webapp/main.py` — FastAPI server, PostgreSQL data access, 21-answer validation, server-only deterministic scores, atomic writes, idempotent retry.
+- `webapp/index.html` — mobile-first Russian Work Values research pilot.
+- `migrations/001_initial_postgres_test.sql` — additive schema for an empty independent TEST database.
+- `tests/` — deterministic Python safety/scoring checks.
+- `render.yaml` — free Python web service template (not yet deployed).
+- `docs/build/UALP_MVP_001_BUILD_PACKET.md` — scope and gates.
 
-Initial assessment battery:
-- RIASEC vocational interests — 60-item digital form
-- Work Values — 21-item pilot
-- Cognitive Core — ICAR-16 anchor
+Dedicated Neon Free TEST project: `ualp-postgres-test` (project `snowy-leaf-35157339`, database `ualp_test`). This is separate from VBOS and ЖЭК. Current import is **DRAFT Work Values only**: 21 questions, 5 options, 27 scales, 42 links, 27 rules. The source content was imported directly into private Neon TEST and **is not published in GitHub**.
 
-The first runtime milestone is deliberately smaller than the full product:
+There is no Apps Script, Sheets backend, external API or payment service in the candidate. Source `UALP_Project_v0.7.zip` remains an immutable provenance reference. No formal psychometric validation or public respondent use has been approved.
 
-`one user -> one assessment run -> responses -> deterministic scale scores -> stored result`
+## Local code checks
 
-Career matching, learning assignment and reassessment feedback are later bounded capabilities.
+```sh
+pip install -r requirements-dev.txt
+python -m compileall -q webapp
+pytest -q
+```
 
-## Data boundary
+## Free TEST deployment boundary
 
-Repository:
-- Apps Script runtime source
-- HTML UI
-- schema contracts
-- migrations/installers
-- deterministic tests
-- architecture/product docs
+A new Render Free Python web service may use this branch with `render.yaml`. Set `UALP_ENV=TEST`, `DATABASE_URL` from this new Neon project and a long random `UALP_ACCESS_KEY` as **private Render environment variables**, never in GitHub. Run `uvicorn webapp.main:app --host 0.0.0.0 --port $PORT`. The web service itself is not yet deployed.
 
-Google Sheets:
-- canonical assessment content
-- separate runtime database for users/runs/responses/scores
+**Access:** the service is internet-addressable but API requires the private TEST key; it is owner-only pilot behavior, not multi-user authentication. Do not send the key to anyone or enter third-party responses.
 
-Never commit:
-- user responses or profiles
-- OAuth credentials / `.clasprc.json`
-- Script Properties
-- private exports
-- copied objective answer keys in client code
+**Limitations:** Neon Free has monthly compute/storage quotas; Render Free cold-starts after idle and can exhaust workspace free hours/bandwidth. Free hosting is not a production availability guarantee.
 
-## Status
+## Safety and what is not ready
 
-Bootstrap line: `0.1.0-dev`
-TEST deployment: NOT_RUN
-PROD: NOT_CONFIGURED
+- No user logins/roles, automatic backups, consent retention/deletion controls, validated translations, career matching or IQ conversion.
+- The source content and any responses/credentials must not be checked into this public repository.
+- Never deploy into existing VBOS/ЖЭК/PROD databases; this is an isolated TEST.
+- TEST web deployment and full HTTP → PostgreSQL integration have **NOT_RUN** status. No user-acceptance or PROD release claimed.

@@ -1,45 +1,16 @@
-# Assessment Runtime Architecture
+# UALP Assessment Runtime — Python/PostgreSQL private TEST
 
-## Main flow
+Flow:
+1. Browser loads a static mobile-friendly interface hosted by the FastAPI server.
+2. Owner supplies TEST access key; server checks secret constant-time and returns only approved draft form/questions and visible options.
+3. Browser submits the full 21-item answer set with explicit consent and a UUID requestId.
+4. FastAPI validates form/version/response completeness; server loads immutable scale link/rules from PostgreSQL.
+5. PostgreSQL transaction stores one AssessmentRun, 21 Responses and 27 ScaleScores atomically.
+6. Successful reply returns six parent raw mean results, source/algorithm version and pilot disclaimer.
+7. Identical retry returns stored result; conflicting payload with the same requestId returns HTTP 409.
 
-`getAssessmentForm(formKey, locale)`
--> read canonical form metadata
--> resolve ordered form items
--> resolve localized prompt/options/assets
--> sanitize client payload
+Deployment: Neon Free PostgreSQL for durable TEST database + Render Free Python web service. Both remain free-tier limited; Render idles after 15 minutes, first request cold-starts. Do not use Render Free PostgreSQL for durable data (it expires after 30 days). Neither project is PROD.
 
-`startAssessment(input)`
--> validate config/form
--> idempotency check
--> create AssessmentRun STARTED
--> return runId + safe form payload
+Security: public GitHub code != public assessment service. Do not commit workbook contents or answer keys without a rights review. Shared TEST access key is not a future account/role system. Production launch requires proper individual authentication, consent/retention policies and content validation.
 
-`submitAssessment(input)`
--> validate run and full response set
--> load server-only scoring material
--> compute deterministic scale scores
--> idempotency check under minimal lock
--> persist Responses + ScaleScores
--> mark run COMPLETED
--> return user-safe result
-
-## Performance shape
-
-For MVP, each request performs bounded batch reads by required sheet/range and filters in memory. Request-local header/table caches prevent repeated metadata reads inside one request.
-
-Scale-dependent row indexes/cache are introduced only where measurement justifies them. Runtime run lookup already has a narrow `EntityRowIndex` contract so normal known-run lookup does not require a full AssessmentRuns scan.
-
-## Failure model
-
-- Validation happens before writes whenever possible.
-- Submit uses explicit run states: `STARTED -> SUBMITTING -> COMPLETED`.
-- Failed mid-commit remains diagnosable as `SUBMITTING`; retry uses clientRequestId and existing persisted rows rather than creating a second logical submission.
-- Content DB is never mutated by assessment-taking APIs.
-
-## Security / test integrity
-
-Correct answers and scoring internals stay server-side. Browser source must not reveal ICAR keys.
-
-## Result labeling
-
-Pilot UI must label results as exploratory while localization/human review/pilot validation remain incomplete.
+Observability and safety: /health returns limited TEST status, no secrets. Local SQLite can test correctness but does NOT count as PostgreSQL TEST runtime. No Apps Script or Sheets integration.

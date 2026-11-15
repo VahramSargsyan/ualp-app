@@ -1,0 +1,18 @@
+# A new FREE TEST web service; no databases, paid plans or PROD created here.
+services:
+  - type: web
+    name: ualp-postgres-private-test
+    runtime: python
+    plan: free
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn webapp.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: UALP_ENV
+        value: TEST
+      - key: DATABASE_URL
+        sync: false
+      - key: UALP_ACCESS_KEY
+        sync: false
