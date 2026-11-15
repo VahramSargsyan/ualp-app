@@ -1,9 +1,9 @@
 name: UALP PostgreSQL candidate checks
 on:
   push:
-    branches: ['feature/ualp-mvp-001-postgres-test']
+    branches: ['feature/ualp-mvp-001-postgres-test', 'feature/ualp-mvp-001-vercel-test']
   pull_request:
-    paths: ['webapp/**','tests/**','migrations/**','requirements*.txt']
+    paths: ['app.py','webapp/**','tests/**','migrations/**','requirements*.txt','.python-version']
 jobs:
   tests:
     permissions:
@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r requirements-dev.txt
-      - run: python -m compileall -q webapp
+      - run: python -m compileall -q app.py webapp
       - run: python -m pytest -q
       - name: Verify no Apps Script and no committed credentials
         shell: bash
