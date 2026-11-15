@@ -14,7 +14,7 @@ Render plan: FREE
 Render region: Frankfurt
 Auto deploy: OFF
 Render initial deploy: dep-dbsr7q6k1f9s73a2rog0 (LIVE, SHA b5398cb972e5e91897c998409d7ae283e56fd847)
-Render environment-only redeploy: dep-dbsra6u7bikc73c94b4g (source SHA d08c0b59723d61c5c8bebf068c0d7e936d1420ef; status pending final verification)
+Render environment-only redeploy: dep-dbsra6u7bikc73c94b4g (source SHA d08c0b59723d61c5c8bebf068c0d7e936d1420ef; LIVE verified 2026-11-15 13:36 UTC)
 Render TEST URL: https://ualp-postgres-private-test.onrender.com
 Neon project: snowy-leaf-35157339 (ualp-postgres-test)
 Neon database: ualp_test, PostgreSQL 18.7, Free organization
