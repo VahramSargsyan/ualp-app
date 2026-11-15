@@ -26,7 +26,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -RIE '-----BEGIN (RSA|OPENSSH|PRIVATE) KEY-----|ghp_[A-Za-z0-9]{30}|postgres(ql)?://[^[:space:]]+@' apps-script tests; then
+          if grep -RIEe '-----BEGIN (RSA|OPENSSH|PRIVATE) KEY-----|ghp_[A-Za-z0-9]{30}|postgres(ql)?://[^[:space:]]+@' apps-script tests; then
             echo "Potential committed secret found"
             exit 1
           fi
