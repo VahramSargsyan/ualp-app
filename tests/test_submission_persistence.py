@@ -181,3 +181,67 @@ def test_incomplete_form_does_not_insert_a_run(isolated_db):
     assert ex.value.status_code == 422
     assert isolated_db.run is None
     assert isolated_db.responses == []
+
+
+# HTTP-layer regression cases: same deployed FastAPI routes, deterministic mocked DB.
+# Not equivalent to authenticated HTTP against the real Vercel Preview runtime.
+from fastapi.testclient import TestClient
+
+
+def test_http_requires_secret_and_test_environment(monkeypatch):
+    monkeypatch.setenv("UALP_ENV", "TEST")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/unused")
+    monkeypatch.setenv("UALP_ACCESS_KEY", "s" * 48)
+    with TestClient(backend.app) as client:
+        assert client.get("/api/forms/UALP_WV21_RU_LIKERT").status_code == 401
+        assert client.get("/api/forms/UALP_WV21_RU_LIKERT",
+                          headers={"X-UALP-Access-Key": "wrong"}).status_code == 401
+        assert client.get("/api/runs/" + str(uuid.uuid4())).status_code == 401
+        monkeypatch.setenv("UALP_ENV", "PROD")
+        assert client.get("/api/forms/UALP_WV21_RU_LIKERT",
+                          headers={"X-UALP-Access-Key": "s" * 48}).status_code == 503
+
+
+def test_http_retry_conflict_and_persisted_counts(isolated_db):
+    backend.app.dependency_overrides[backend.authorized] = lambda: "mock://test"
+    try:
+        with TestClient(backend.app) as client:
+            payload = _payload().model_dump(mode="json")
+            first = client.post("/api/runs", json=payload)
+            assert first.status_code == 201, first.text
+            assert first.json()["scoreCount"] == 27
+            again = client.post("/api/runs", json=payload)
+            assert again.status_code == 201, again.text
+            assert again.json()["runId"] == first.json()["runId"]
+            assert len(isolated_db.responses) == 21
+            assert len(isolated_db.scores) == 27
+            altered = _payload(uuid.UUID(payload["requestId"]), first_option="V0").model_dump(mode="json")
+            conflict = client.post("/api/runs", json=altered)
+            assert conflict.status_code == 409
+            assert len(isolated_db.responses) == 21
+            assert len(isolated_db.scores) == 27
+    finally:
+        backend.app.dependency_overrides.pop(backend.authorized, None)
+
+
+def test_http_negative_inputs_never_write(isolated_db):
+    backend.app.dependency_overrides[backend.authorized] = lambda: "mock://test"
+    try:
+        with TestClient(backend.app) as client:
+            full = _payload().model_dump(mode="json")
+            bad = [
+                ({**full, "consent": False}, 422),
+                ({**full, "answers": full["answers"][:-1]}, 422),
+                ({**full, "answers": full["answers"][:-1] + [full["answers"][0]]}, 422),
+                ({**full, "formKey": "NOT_AN_ENABLED_FORM"}, 404),
+                ({**full, "answers": [{**full["answers"][0], "optionKey": "INVALID"}] +
+                  full["answers"][1:]}, 422)
+            ]
+            for payload, expected in bad:
+                response = client.post("/api/runs", json=payload)
+                assert response.status_code == expected, (expected, response.text)
+            assert isolated_db.run is None
+            assert isolated_db.responses == []
+            assert isolated_db.scores == []
+    finally:
+        backend.app.dependency_overrides.pop(backend.authorized, None)
