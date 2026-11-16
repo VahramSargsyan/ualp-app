@@ -364,3 +364,131 @@ def test_06_profile_aggregates_only_stored_assessments(api, isolated_postgres):
     assert len(by_method[second_key]["parentScores"]) == 1
     assert float(by_method[second_key]["parentScores"][0]["mean"]) == 2
     assert counts(isolated_postgres) == final_count
+
+
+
+def test_07_synthetic_riasec_catalog_install_keeps_work_values_intact(
+    api, isolated_postgres,
+):
+    """Preview a *future* additive 60-item catalog install in disposable PostgreSQL.
+
+    No O*NET question text, translation, release, or live Neon migration.
+    The production API's pilot allowlist MUST still reject the second form.
+    """
+    from webapp.riasec_scoring import RIASEC_AREAS, score_short_form
+
+    prior = counts(isolated_postgres)
+    assert prior == (15, 295, 379)
+    form_id = "CI-RIASEC-CATALOG-ONLY"
+    key = "CI_RIASEC_60_SYNTHETIC"
+    items = [f"CI_RIASEC_ITEM_{n:02d}" for n in range(60)]
+    links = [(item, RIASEC_AREAS[n // 10]) for n, item in enumerate(items)]
+    options = {f"OPT_{n}": n for n in range(5)}
+    answers = {
+        item: f"OPT_{n % 5}"
+        for n, item in enumerate(items)
+    }
+    computed = score_short_form(answers, links, options)
+    assert computed == dict.fromkeys(RIASEC_AREAS, 20)
+    run_id = uuid.uuid4()
+
+    with psycopg.connect(isolated_postgres) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""INSERT INTO ualp_catalog_forms
+                 (form_id,form_key,form_version,locale,status,validation_status,
+                  item_count,algorithm_version)
+                 VALUES (%s,%s,'synthetic-only','ru','DRAFT','NOT_REVIEWED',60,'RIASEC-SUM-v1')
+            """, (form_id, key))
+            cur.executemany("""INSERT INTO ualp_catalog_items
+                 (item_id,form_id,prompt,display_order,required)
+                 VALUES (%s,%s,%s,%s,true)""",
+                 [(item, form_id, f"CI synthetic placeholder {n + 1}", n + 1)
+                  for n, item in enumerate(items)])
+            cur.executemany("""INSERT INTO ualp_catalog_options
+                 (form_id,option_key,label,score_value,display_order)
+                 VALUES (%s,%s,%s,%s,%s)""",
+                 [(form_id, name, f"CI synthetic option {value}", value, value + 1)
+                  for name, value in options.items()])
+            cur.executemany("""INSERT INTO ualp_catalog_scales
+                 (scale_id,form_id,scale_key,label,is_parent)
+                 VALUES (%s,%s,%s,%s,true)""",
+                 [(f"CI_RIASEC_SCALE_{area}",form_id,area,f"CI synthetic {area}")
+                  for area in RIASEC_AREAS])
+            cur.executemany("""INSERT INTO ualp_catalog_links
+                 (item_id,scale_id,weight,direction)
+                 VALUES (%s,%s,1,'POSITIVE')""",
+                 [(item, f"CI_RIASEC_SCALE_{area}") for item, area in links])
+            cur.executemany("""INSERT INTO ualp_catalog_scoring_rules
+                 (form_id,scale_id,method,min_items,algorithm_version,status)
+                 VALUES (%s,%s,'SUM',10,'RIASEC-SUM-v1','DRAFT')""",
+                 [(form_id, f"CI_RIASEC_SCALE_{area}")
+                  for area in RIASEC_AREAS])
+            cur.execute("""INSERT INTO ualp_assessment_runs
+                 (run_id,request_id,form_id,payload_sha256,consent,status,algorithm_version)
+                 VALUES (%s,%s,%s,%s,true,'COMPLETED','RIASEC-SUM-v1')""",
+                 (run_id, uuid.uuid4(), form_id, "a" * 64))
+            cur.executemany("""INSERT INTO ualp_responses
+                 (run_id,item_id,option_key) VALUES (%s,%s,%s)""",
+                 [(run_id,item,answer) for item,answer in answers.items()])
+            cur.executemany("""INSERT INTO ualp_scale_scores
+                 (run_id,scale_id,raw_score,answered_count,algorithm_version)
+                 VALUES (%s,%s,%s,10,'RIASEC-SUM-v1')""",
+                 [(run_id, f"CI_RIASEC_SCALE_{area}",score)
+                  for area, score in computed.items()])
+
+    assert counts(isolated_postgres) == (
+        prior[0] + 1, prior[1] + 60, prior[2] + 6
+    )
+    with psycopg.connect(isolated_postgres) as conn:
+        counts_by_form = conn.execute(
+            """SELECT f.form_key, COUNT(*) AS complete
+               FROM ualp_assessment_runs r
+               JOIN ualp_catalog_forms f ON f.form_id = r.form_id
+               GROUP BY f.form_key""").fetchall()
+        assert dict(counts_by_form) == {
+            ENABLED_FORM: 14,
+            "CI_PROFILE_EXTRA": 1,
+            key: 1,
+        }
+        independent = conn.execute(
+            """SELECT s.scale_key, count(*)::int AS items, sum(o.score_value)
+               FROM ualp_responses resp
+               JOIN ualp_catalog_items item ON item.item_id = resp.item_id
+               JOIN ualp_catalog_options o
+                 ON o.form_id = item.form_id AND o.option_key=resp.option_key
+               JOIN ualp_catalog_links l ON l.item_id = item.item_id
+               JOIN ualp_catalog_scales s ON s.scale_id = l.scale_id
+               WHERE resp.run_id=%s
+               GROUP BY s.scale_key""", (run_id,)).fetchall()
+        assert {x[0]: (x[1],int(x[2])) for x in independent} == {
+            area: (10, 20) for area in RIASEC_AREAS
+        }
+        assert conn.execute(
+            "SELECT count(*) FROM ualp_scale_scores WHERE run_id=%s",
+            (run_id,),
+        ).fetchone()[0] == 6
+
+    profile = api.get("/api/profile", headers=headers())
+    assert profile.status_code == 200, profile.text
+    by_key = {m["formKey"]: m for m in profile.json()["methods"]}
+    assert set(by_key) == {ENABLED_FORM, "CI_PROFILE_EXTRA", key}
+    assert by_key[ENABLED_FORM]["completedRuns"] == 14
+    assert len(by_key[ENABLED_FORM]["parentScores"]) == 6
+    assert by_key[key]["completedRuns"] == 1
+    assert len(by_key[key]["parentScores"]) == 6
+    assert {s["key"]: int(s["mean"]) for s in by_key[key]["parentScores"]} == computed
+
+    # Even a populated catalog MUST NOT unlock an unreviewed questionnaire.
+    assert api.get(f"/api/forms/{key}", headers=headers()).status_code == 404
+    submission = {
+        "requestId": str(uuid.uuid4()), "formKey": key,
+        "consent": True,
+        "answers": [
+            {"itemId": item,"optionKey":answer}
+            for item, answer in answers.items()
+        ],
+    }
+    assert api.post("/api/runs", headers=headers(), json=submission).status_code == 404
+    assert counts(isolated_postgres) == (
+        prior[0] + 1, prior[1] + 60, prior[2] + 6
+    )
