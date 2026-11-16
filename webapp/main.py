@@ -222,18 +222,21 @@ def submit(data: Submission, url: str = Depends(authorized)):
                        VALUES (%s,%s,%s,%s,true,'COMPLETED',%s)""",
                     (run_id,request_id,form_row["form_id"],digest,form_row["algorithm_version"])
                 )
-                conn.executemany(
-                    """INSERT INTO ualp_responses(run_id,item_id,option_key)
-                       VALUES (%s,%s,%s)""",
-                    [(run_id,k,v) for k,v in answer_map.items()]
-                )
-                conn.executemany(
-                    """INSERT INTO ualp_scale_scores
-                       (run_id,scale_id,raw_score,answered_count,algorithm_version)
-                       VALUES (%s,%s,%s,%s,%s)""",
-                    [(run_id,x["scaleId"],x["mean"],x["answered"],x["algorithmVersion"])
-                     for x in computed]
-                )
+                # Psycopg 3 executemany() is a Cursor method, not a Connection method.
+                # Keep both batch inserts inside the existing database transaction.
+                with conn.cursor() as cur:
+                    cur.executemany(
+                        """INSERT INTO ualp_responses(run_id,item_id,option_key)
+                           VALUES (%s,%s,%s)""",
+                        [(run_id,k,v) for k,v in answer_map.items()]
+                    )
+                    cur.executemany(
+                        """INSERT INTO ualp_scale_scores
+                           (run_id,scale_id,raw_score,answered_count,algorithm_version)
+                           VALUES (%s,%s,%s,%s,%s)""",
+                        [(run_id,x["scaleId"],x["mean"],x["answered"],x["algorithmVersion"])
+                         for x in computed]
+                    )
         except psycopg.errors.UniqueViolation:
             # Competing same-request writes are serialized by PostgreSQL's UNIQUE index.
             conn.rollback()
