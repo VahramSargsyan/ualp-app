@@ -186,3 +186,22 @@ MIGRATION_ROLLBACK: If owner Preview fails, revert only feature-branch runtime t
 NOT_RUN: External reviewer approval, psychometric validation, runtime auth on actual remote Preview via tool, full mobile walkthrough and owner acceptance, PROD. No app-level manual runtime claim, no main merge.
 FILES_TO_COPY: none. PR branch and connected app integration only.
 AUTHORIZATION_END: After exact CI and Preview build verification, present owner TEST URL for mobile acceptance; do not promote to main/PROD automatically.
+
+
+### MVP-005 — remember owner sign-in (2026-11-16)
+
+CAPABILITY_ID: UALP-MVP-005 / OWNER_DEVICE_SESSION
+USER_RESULT: enter the existing private key once, optionally remember this browser for 30 days; keep sign-in on home/result navigation; explicit logout.
+MODE: IMPLEMENT_FEATURE. RISK: L3 authentication boundary.
+BASE_COMMIT: a45439abe1d0e4390547298d25480525f35e703b on feature/ualp-mvp-004-riasec-source-gate / PR #6. Same private Preview lane, no main merge or PROD.
+OWNER_ACCEPTANCE_EVIDENCE: Owner supplied phone result and reopened-profile screenshots, confirming RIASEC scores reload and both RIASEC and existing Work Values appear. This is owner-observed mobile acceptance of those flows, not scientific validation or an assistant database audit.
+AUTHORIZATION: Owner explicitly requests avoiding repeated 32+ character key entry and remembered app access. Current assistant only, budget 0. No new account provider, multi-user rollout, APK, paid infrastructure or source content changes.
+IMPLEMENTATION: Dedicated login endpoint exchanges existing key for host-bound HMAC-SHA256 signed session (random nonce, expiry; no raw access key in cookie). Secure / HttpOnly / SameSite=Strict / __Host- cookie. Remember checkbox adds 30-day Max-Age; unchecked uses browser-session cookie, also with a 30-day cryptographic upper bound. Key rotation invalidates all sessions. No localStorage/sessionStorage credential persistence. Same-origin custom-header + Origin/Fetch-Metadata checks for cookie mutations. Existing explicit-header clients/CI still work. Logout clears this browser cookie; no per-device server-side revocation registry, so an independently stolen token is valid until expiry/key rotation.
+SCOPE: webapp/main.py, webapp/owner_session.py, webapp/index.html, focused auth/SQL/UI tests, this packet and current-state documentation.
+DATA / MIGRATION: No DB writes for login/logout, no schema migration, no change to IDs, scores, catalog or saved answers. No Neon credentials or real private key needed during development.
+ACCEPTANCE: valid key -> secure cookie -> new page/browser context -> profile and tests without key -> logout -> unauthorized. Bad key, malformed/expired/tampered/other-host cookie and cross-origin writes rejected. Existing 21/60-item scoring/save/retry regressions maintained.
+LOCAL_CHECKS: Python full suite 67 PASS / 11 intentionally skipped real-PostgreSQL tests; compileall and JavaScript syntax PASS. Browser and exact-commit CI/Preview checks recorded in PR delivery receipt.
+BROWSER_TEST: tests/verify_owner_session_ui.cjs expects Playwright and local HTTPS uvicorn on 127.0.0.1:8843 with synthetic key, using mocked catalog/results. Its browser cookie/login/logout are actual backend HTTP, but it does not prove Neon persistence. Use CHROMIUM_PATH where needed.
+ROLLBACK: Revert this scoped feature commit to baseline runtime, removing cookie authorization and login UI. Existing saved results remain untouched. Old cookies become unused; key rotation invalidates them if required. No DB restore.
+RESIDUAL_LIMITS: Stable Preview hostname required; a different deployment hostname/browser has a separate cookie. Vercel protection is independent. Refreshing an unfinished questionnaire still loses unfinished answers; draft resume is out of scope. Scientific validation remains NOT_RUN.
+AUTHORIZATION_END: verified private Preview candidate and owner instructions; no automatic next capability/main/PROD promotion.

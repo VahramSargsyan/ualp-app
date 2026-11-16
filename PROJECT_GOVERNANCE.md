@@ -23,9 +23,10 @@ LAST_DECISION: 2026-11-15 — owner explicitly rejected Apps Script and selected
 - No PROD or public respondent access without separate explicit authorization.
 - Deployment gates: local tests => isolated Neon TEST => exact Vercel Hobby Preview runtime => human acceptance. Vercel PROD is not authorized.
 
-CURRENT_MODE: BUILD_NEW_APP
-CURRENT_CAPABILITY: UALP-MVP-001
-CURRENT_BOUNDARY: one owner + one Work Values form + persisted score
+CURRENT_MODE: IMPLEMENT_FEATURE
+CURRENT_CAPABILITY: UALP-MVP-005 / OWNER_DEVICE_SESSION
+CURRENT_BOUNDARY: remembered single-owner TEST sign-in; existing Work Values/RIASEC data preserved
 TEST_DATABASE: Neon Free project snowy-leaf-35157339 / ualp_test
 PROD: NOT_CONFIGURED / NOT_AUTHORIZED
-TEST_APP: VERCEL_PREVIEW_PENDING. The earlier Render Free shell is superseded but not automatically deleted.
+TEST_APP: existing private Vercel branch Preview (PR #6); no main/PROD promotion. See latest Build Packet section and PR receipt for exact candidate/checks. The earlier Render Free shell remains superseded.
+

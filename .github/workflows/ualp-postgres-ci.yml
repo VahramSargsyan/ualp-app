@@ -37,3 +37,22 @@ jobs:
           if grep -RIEe '-----BEGIN (RSA|OPENSSH|PRIVATE) KEY-----|ghp_[A-Za-z0-9]{30}|postgres(ql)?://[^[:space:]]+:[^[:space:]]+@' webapp tests; then
             echo 'Potential credential found'; exit 1
           fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Mobile owner-session browser regression (synthetic, local HTTPS)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --prefix /tmp/ualp-browser-check playwright@1.62.1
+          /tmp/ualp-browser-check/node_modules/.bin/playwright install --with-deps chromium
+          openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/ualp-session-key.pem -out /tmp/ualp-session-cert.pem -days 1 -subj '/CN=localhost'
+          UALP_ENV=TEST DATABASE_URL=postgresql://localhost/unused UALP_ACCESS_KEY=synthetic-browser-only-access-key-000000000000 python -m uvicorn webapp.main:app --host 127.0.0.1 --port 8843 --ssl-keyfile /tmp/ualp-session-key.pem --ssl-certfile /tmp/ualp-session-cert.pem >/tmp/ualp-session-server.log 2>&1 &
+          ualp_server_pid=$!
+          trap 'kill "$ualp_server_pid" || true' EXIT
+          for attempt in {1..30}; do
+            if curl -kfsS https://127.0.0.1:8843/health >/dev/null; then break; fi
+            sleep 1
+          done
+          NODE_PATH=/tmp/ualp-browser-check/node_modules node tests/verify_owner_session_ui.cjs

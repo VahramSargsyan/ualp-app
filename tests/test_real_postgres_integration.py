@@ -274,7 +274,7 @@ def test_06_profile_aggregates_only_stored_assessments(api, isolated_postgres):
     assert before == (13, 273, 351)
     r = api.get("/api/profile", headers=headers())
     assert r.status_code == 200, r.text
-    assert r.headers.get("cache-control") == "private, no-store"
+    assert r.headers.get("cache-control") == "no-store, private"
     profile = r.json()
     assert profile["ownerMode"] == "SINGLE_OWNER_TEST"
     assert profile["methodCount"] == 1
@@ -864,3 +864,32 @@ def test_10_private_source_locked_riasec_http_in_ephemeral_ci(
     assert api.post("/api/runs", json=request, headers=headers()).status_code == 404
     assert api.get("/api/forms/"+ENABLED_FORM, headers=headers()).status_code == 200
     assert counts(isolated_postgres) == (19, 535, 403)
+
+
+
+def test_11_cookie_session_reads_and_saves_without_access_key(api, isolated_postgres):
+    """Real SQL save/retry/reopen/profile through the browser session boundary."""
+    origin = 'https://testserver'
+    browser_headers = {'X-UALP-Request': '1', 'Origin': origin}
+    before = counts(isolated_postgres)
+    with TestClient(app, base_url=origin) as browser:
+        login = browser.post('/api/session', json={'remember': True},
+                             headers={**headers(), **browser_headers})
+        assert login.status_code == 200, login.text
+        assert browser.get('/api/session').status_code == 200
+        assert browser.get(f'/api/forms/{ENABLED_FORM}').status_code == 200
+        request = payload()
+        assert browser.post('/api/runs', json=request).status_code == 403
+        assert counts(isolated_postgres) == before
+        saved = browser.post('/api/runs', json=request, headers=browser_headers)
+        assert saved.status_code == 201, saved.text
+        run_id = saved.json()['runId']
+        again = browser.post('/api/runs', json=request, headers=browser_headers)
+        assert again.json()['runId'] == run_id
+        assert counts(isolated_postgres) == (before[0]+1, before[1]+21, before[2]+27)
+        assert browser.get('/api/runs/'+run_id).status_code == 200
+        assert browser.get('/api/history').status_code == 200
+        assert browser.get('/api/profile').status_code == 200
+        assert browser.delete('/api/session', headers=browser_headers).status_code == 200
+        assert browser.get('/api/profile').status_code == 401
+        assert counts(isolated_postgres) == (before[0]+1, before[1]+21, before[2]+27)

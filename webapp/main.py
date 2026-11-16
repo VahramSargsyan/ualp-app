@@ -1,3 +1,4 @@
+# main.py | UALP 0.4.1-owner-session-test
 """UALP PostgreSQL-only private assessment TEST (no Sheets or Apps Script)."""
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ from pathlib import Path
 
 import psycopg
 from psycopg.rows import dict_row
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from webapp.riasec_scoring import RIASECContractError, score_catalog_short_form
@@ -20,7 +21,9 @@ from webapp.riasec_manifest import (
     LICENSE_URL, ManifestError, verify_private_postgres_catalog,
 )
 
-APP_VERSION = "0.4.0-riasec-private-test"
+from webapp.owner_session import COOKIE_NAME, SESSION_SECONDS, issue_session, valid_session
+
+APP_VERSION = "0.4.1-owner-session-test"
 ENABLED_FORM = "UALP_WV21_RU_LIKERT"
 CI_SYNTHETIC_FORM = "CI_RIASEC_60_SYNTHETIC"
 OWNER_RIASEC_FORM = "ONET_SHORT_60_DIGITAL"
@@ -33,6 +36,14 @@ app = FastAPI(
     docs_url=None, redoc_url=None, openapi_url=None,
 )
 
+@app.middleware("http")
+async def private_api_responses(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, private"
+    return response
+
+
 def secure_config() -> tuple[str, str]:
     if os.getenv("UALP_ENV", "") != "TEST":
         raise HTTPException(503, "UALP_TEST_ONLY: deployment must be TEST")
@@ -42,11 +53,70 @@ def secure_config() -> tuple[str, str]:
         raise HTTPException(503, "UALP_CONFIG_MISSING: TEST setup required")
     return url, secret
 
-def authorized(x_ualp_access_key: str | None = Header(default=None)) -> str:
+def browser_mutation(request: Request) -> None:
+    # A custom header is required even when Origin is absent. No CORS is enabled.
+    # Cross-origin pages cannot send it without an approved preflight.
+    if request.headers.get("x-ualp-request") != "1":
+        raise HTTPException(403, "Same-origin request required")
+    if request.headers.get("sec-fetch-site") not in (None, "same-origin"):
+        raise HTTPException(403, "Cross-origin request denied")
+    origin = request.headers.get("origin")
+    if origin and origin != str(request.base_url).rstrip("/"):
+        raise HTTPException(403, "Cross-origin request denied")
+
+
+def authorized(x_ualp_access_key: str | None = Header(default=None),
+               request: Request = None) -> str:
     url, key = secure_config()
+    # Preserve existing explicit-header clients and CI; never fall back from a bad key.
+    if isinstance(x_ualp_access_key, str):
+        if secrets.compare_digest(x_ualp_access_key, key):
+            return url
+        raise HTTPException(401, "Access denied")
+    if request is not None and valid_session(
+        request.cookies.get(COOKIE_NAME, ""), key, request.url.netloc
+    ):
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            browser_mutation(request)
+        return url
+    raise HTTPException(401, "Access denied")
+
+
+class SessionLogin(BaseModel):
+    remember: bool = False
+
+
+@app.post("/api/session")
+def login(data: SessionLogin, request: Request, response: Response,
+          x_ualp_access_key: str | None = Header(default=None)):
+    browser_mutation(request)
+    _, key = secure_config()
     if not x_ualp_access_key or not secrets.compare_digest(x_ualp_access_key, key):
         raise HTTPException(401, "Access denied")
-    return url
+    response.set_cookie(
+        COOKIE_NAME, issue_session(key, request.url.netloc),
+        max_age=SESSION_SECONDS if data.remember else None,
+        secure=True, httponly=True, samesite="strict", path="/",
+    )
+    response.headers["Cache-Control"] = "no-store, private"
+    return {"authenticated": True, "remembered": data.remember}
+
+
+@app.get("/api/session")
+def session_status(response: Response, url: str = Depends(authorized)):
+    response.headers["Cache-Control"] = "no-store, private"
+    return {"authenticated": True}
+
+
+@app.delete("/api/session")
+def logout(request: Request, response: Response):
+    # Permit clearing an expired cookie without a functioning DB or access key.
+    browser_mutation(request)
+    response.delete_cookie(COOKIE_NAME, path="/", secure=True,
+                           httponly=True, samesite="strict")
+    response.headers["Cache-Control"] = "no-store, private"
+    return {"authenticated": False}
+
 
 def connect(url: str):
     return psycopg.connect(url, row_factory=dict_row, connect_timeout=10)
@@ -524,3 +594,4 @@ def owner_profile(response: Response, url: str = Depends(authorized)):
             "нельзя непосредственно сравнивать."
         ),
     }
+
