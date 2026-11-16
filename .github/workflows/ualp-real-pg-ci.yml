@@ -1,11 +1,12 @@
 name: UALP ephemeral PostgreSQL integration
 on:
   push:
-    branches: ['feature/ualp-mvp-001-vercel-test', 'feature/ualp-mvp-002-history-test']
+    branches: ['feature/ualp-mvp-001-vercel-test', 'feature/ualp-mvp-002-history-test', 'feature/ualp-mvp-003-profile-test']
   pull_request:
     paths:
       - 'webapp/**'
       - 'tests/test_real_postgres_integration.py'
+      - 'docs/build/UALP_MVP_001_BUILD_PACKET.md'
       - 'migrations/001_initial_postgres_test.sql'
       - 'requirements*.txt'
       - '.github/workflows/ualp-real-pg-ci.yml'
