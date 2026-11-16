@@ -7,15 +7,16 @@ import os
 import secrets
 import uuid
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 
 import psycopg
 from psycopg.rows import dict_row
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-APP_VERSION = "0.1.0-postgres-test"
+APP_VERSION = "0.2.0-history-test"
 ENABLED_FORM = "UALP_WV21_RU_LIKERT"
 ROOT = Path(__file__).resolve().parent
 
@@ -255,3 +256,65 @@ def submit(data: Submission, url: str = Depends(authorized)):
 def result(run_id: uuid.UUID, url: str = Depends(authorized)):
     with connect(url) as conn:
         return stored_result(conn, run_id)
+
+
+HISTORY_PAGE_SIZE = 10
+
+
+@app.get("/api/history")
+def history(
+    response: Response,
+    cursor: str | None = Query(default=None, min_length=1, max_length=128),
+    url: str = Depends(authorized),
+):
+    """Read-only owner TEST history; never expose stored raw answers.
+
+    Created-at/run-id keyset pagination makes ties deterministic and bounds I/O.
+    The current single-owner TEST key is the only access control: not multi-user.
+    """
+    response.headers["Cache-Control"] = "no-store, private"
+    params = [ENABLED_FORM]
+    paging = ""
+    if cursor is not None:
+        try:
+            timestamp_text, run_text = cursor.split("|")
+            timestamp = datetime.fromisoformat(timestamp_text)
+            run_id = uuid.UUID(run_text)
+            if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+                raise ValueError("Cursor must have timezone")
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(422, "Invalid history cursor") from exc
+        paging = "AND (r.created_at, r.run_id) < (%s, %s)"
+        params.extend([timestamp, run_id])
+    params.append(HISTORY_PAGE_SIZE + 1)
+    with connect(url) as conn:
+        rows = conn.execute(
+            """SELECT r.run_id, r.created_at, r.status, r.algorithm_version,
+                      f.form_version
+               FROM ualp_assessment_runs AS r
+               JOIN ualp_catalog_forms AS f ON f.form_id = r.form_id
+               WHERE f.form_key = %s AND r.status = 'COMPLETED'
+            """ + paging +
+            """ ORDER BY r.created_at DESC, r.run_id DESC LIMIT %s""",
+            tuple(params),
+        ).fetchall()
+    page = rows[:HISTORY_PAGE_SIZE]
+    next_cursor = None
+    if len(rows) > HISTORY_PAGE_SIZE and page:
+        last = page[-1]
+        next_cursor = last["created_at"].isoformat() + "|" + str(last["run_id"])
+    return {
+        "items": [
+            {
+                "runId": str(row["run_id"]),
+                "completedAt": row["created_at"].isoformat(),
+                "status": row["status"],
+                "formVersion": row["form_version"],
+                "scoringAlgorithmVersion": row["algorithm_version"],
+            }
+            for row in page
+        ],
+        "nextCursor": next_cursor,
+        "pageSize": HISTORY_PAGE_SIZE,
+        "notice": "История только для владельца TEST. Оценки экспериментальные.",
+    }

@@ -203,3 +203,57 @@ def test_04_two_simultaneous_same_id_do_not_duplicate(api, isolated_postgres):
     assert [s for s, _ in both] == [201, 201], both
     assert both[0][1] == both[1][1]
     assert counts(isolated_postgres) == (2, 42, 54)
+
+
+
+def test_05_history_paginates_and_reopens_exact_scores(api, isolated_postgres):
+    # The prior tests intentionally created two synthetic completed runs.
+    # All entries are generated through the real API in the disposable DB.
+    assert counts(isolated_postgres) == (2, 42, 54)
+    assert api.get("/api/history").status_code == 401
+    assert api.get("/api/history", headers={"X-UALP-Access-Key": "bad"}).status_code == 401
+    assert api.get("/api/history?cursor=bad", headers=headers()).status_code == 422
+    assert api.get("/api/history?cursor=2026-11-16T00%3A00%3A00%7C"+
+                   str(uuid.uuid4()), headers=headers()).status_code == 422
+
+    added = []
+    for _ in range(11):
+        r = api.post("/api/runs", json=payload(), headers=headers())
+        assert r.status_code == 201, r.text
+        added.append(r.json()["runId"])
+    before = counts(isolated_postgres)
+    assert before == (13, 273, 351)
+
+    p1 = api.get("/api/history", headers=headers())
+    assert p1.status_code == 200, p1.text
+    page1 = p1.json()
+    assert len(page1["items"]) == 10
+    assert page1["pageSize"] == 10
+    assert page1["nextCursor"]
+    assert all(x["status"] == "COMPLETED" for x in page1["items"])
+    assert all(x["formVersion"] == "ci-v1" for x in page1["items"])
+    assert all("completedAt" in x and "runId" in x for x in page1["items"])
+    assert "answers" not in p1.text and "optionKey" not in p1.text
+    assert "raw_score" not in p1.text
+    ids1 = [x["runId"] for x in page1["items"]]
+    assert len(set(ids1)) == 10
+
+    p2 = api.get("/api/history", params={"cursor": page1["nextCursor"]},
+                 headers=headers())
+    assert p2.status_code == 200, p2.text
+    page2 = p2.json()
+    assert len(page2["items"]) == 3
+    assert page2["nextCursor"] is None
+    ids2 = [x["runId"] for x in page2["items"]]
+    assert len(set(ids1 + ids2)) == 13
+    assert set(added).issubset(ids1 + ids2)
+
+    # Previously saved scores must reopen byte-for-byte as the stored API,
+    # without a new assessment or any DB writes.
+    selected = page2["items"][-1]["runId"]
+    reopened = api.get("/api/runs/" + selected, headers=headers())
+    assert reopened.status_code == 200
+    assert reopened.json()["runId"] == selected
+    assert reopened.json()["status"] == "COMPLETED"
+    assert len(reopened.json()["scores"]) == 6
+    assert counts(isolated_postgres) == before

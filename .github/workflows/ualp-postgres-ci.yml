@@ -1,7 +1,7 @@
 name: UALP PostgreSQL candidate checks
 on:
   push:
-    branches: ['feature/ualp-mvp-001-postgres-test', 'feature/ualp-mvp-001-vercel-test']
+    branches: ['feature/ualp-mvp-001-postgres-test', 'feature/ualp-mvp-001-vercel-test', 'feature/ualp-mvp-002-history-test']
   pull_request:
     paths: ['app.py','webapp/**','tests/**','migrations/**','requirements*.txt','.python-version']
 jobs:
@@ -17,6 +17,17 @@ jobs:
           python-version: '3.12'
       - run: pip install -r requirements-dev.txt
       - run: python -m compileall -q app.py webapp
+      - name: Validate mobile UI inline JavaScript syntax
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          html=Path('webapp/index.html').read_text(encoding='utf-8')
+          assert html.count('<script>')==1 and html.count('</script>')==1
+          script=html.split('<script>',1)[1].split('</script>',1)[0]
+          Path('/tmp/ualp-ui.js').write_text(script,encoding='utf-8')
+          PY
+          node --check /tmp/ualp-ui.js
       - run: python -m pytest -q
       - name: Verify no Apps Script and no committed credentials
         shell: bash
