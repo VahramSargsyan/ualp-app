@@ -16,10 +16,17 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, st
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from webapp.riasec_scoring import RIASECContractError, score_catalog_short_form
+from webapp.riasec_manifest import (
+    DRAFT_STATUS, LICENSE_URL, PRIVATE_SCOPE, SCHEMA_VERSION,
+    ManifestError, validate_private_manifest,
+)
 
-APP_VERSION = "0.3.0-profile-test"
+APP_VERSION = "0.4.0-riasec-private-test"
 ENABLED_FORM = "UALP_WV21_RU_LIKERT"
 CI_SYNTHETIC_FORM = "CI_RIASEC_60_SYNTHETIC"
+OWNER_RIASEC_FORM = "ONET_SHORT_60_DIGITAL"
+OWNER_RIASEC_VERSION = "RU-v0.2-editorial-DRAFT-20261116"
+OWNER_RIASEC_SHA256 = "9d54adb24827f3902ba91858e711e92d343488b1863d22a695847dbdd47197be"
 ROOT = Path(__file__).resolve().parent
 
 app = FastAPI(
@@ -79,13 +86,103 @@ def _ci_synthetic_riasec_allowed(conn, key: str) -> bool:
     )
 
 
+def _owner_riasec_allowed(conn, key: str) -> bool:
+    """Owner-only experimental TEST on the exact separate Neon TEST database."""
+    host = conn.info.host or ""
+    return (
+        key == OWNER_RIASEC_FORM
+        and os.getenv("UALP_ENV") == "TEST"
+        and conn.info.dbname == "ualp_test"
+        and host.endswith(".neon.tech")
+    )
+
+
+def _verify_owner_riasec_catalog(conn, form_row, items) -> None:
+    """Reconstruct private source-lock from DB, fail closed if any text drifts."""
+    if (
+        form_row["form_id"] != "FORM-000001"
+        or form_row["form_version"] != OWNER_RIASEC_VERSION
+        or form_row["locale"] != "ru"
+        or form_row["algorithm_version"] != "RIASEC-SUM-v1"
+        or form_row["validation_status"] != "NOT_REVIEWED"
+    ):
+        raise HTTPException(503, "Private RIASEC catalog version mismatch")
+    scales = conn.execute(
+        """SELECT scale_id,scale_key,label,is_parent FROM ualp_catalog_scales
+           WHERE form_id=%s ORDER BY scale_id""", (form_row["form_id"],)
+    ).fetchall()
+    links = conn.execute(
+        """SELECT l.item_id,s.scale_key,l.weight,l.direction
+           FROM ualp_catalog_links l JOIN ualp_catalog_scales s
+             ON s.scale_id=l.scale_id WHERE s.form_id=%s""",
+        (form_row["form_id"],),
+    ).fetchall()
+    option_rows = conn.execute(
+        """SELECT option_key,label,score_value FROM ualp_catalog_options
+           WHERE form_id=%s ORDER BY display_order""", (form_row["form_id"],)
+    ).fetchall()
+    rules = conn.execute(
+        """SELECT scale_id,method,min_items,algorithm_version,status
+           FROM ualp_catalog_scoring_rules WHERE form_id=%s""",
+        (form_row["form_id"],),
+    ).fetchall()
+    if (len(links) != 60 or len(rules) != 6
+            or len(scales) != 6 or len(option_rows) != 5
+            or any(x["direction"] != "POSITIVE" or x["weight"] != 1
+                   for x in links)
+            or any(x["method"] != "SUM" or x["min_items"] != 10
+                   or x["algorithm_version"] != "RIASEC-SUM-v1"
+                   or x["status"] != "DRAFT" for x in rules)):
+        raise HTTPException(503, "Private RIASEC catalog relationships invalid")
+    mapping = {x["item_id"]: x["scale_key"] for x in links}
+    if len(mapping) != 60:
+        raise HTTPException(503, "Private RIASEC link identities invalid")
+    private_manifest = {
+        "schemaVersion": SCHEMA_VERSION,
+        "formKey": OWNER_RIASEC_FORM,
+        "formVersion": form_row["form_version"],
+        "sourceFormId": form_row["form_id"],
+        "locale": "ru",
+        "purpose": "VOLUNTARY_SELF_EXPLORATION",
+        "distributionScope": PRIVATE_SCOPE,
+        "validationStatus": DRAFT_STATUS,
+        "algorithmVersion": "RIASEC-SUM-v1",
+        "licenseUrl": LICENSE_URL,
+        "items": [
+            {"itemId": x["item_id"], "sourceIndex": x["display_order"],
+             "prompt": x["prompt"], "scaleKey": mapping[x["item_id"]],
+             "reviewStatus": DRAFT_STATUS}
+            for x in items
+        ],
+        "options": [
+            {"optionKey": x["option_key"], "label": x["label"],
+             "scoreValue": int(x["score_value"]),
+             "reviewStatus": DRAFT_STATUS}
+            for x in option_rows
+        ],
+        "scales": [
+            {"scaleKey": x["scale_key"], "label": x["label"]}
+            for x in scales
+        ],
+    }
+    try:
+        receipt = validate_private_manifest(
+            private_manifest, expected_digest=OWNER_RIASEC_SHA256
+        )
+    except (ManifestError, KeyError, ValueError, TypeError, ArithmeticError):
+        raise HTTPException(503, "Private RIASEC source-lock mismatch") from None
+    if receipt.eligible_for_public_release:
+        raise HTTPException(503, "RIASEC release status invalid")
+
+
 def fetch_form(conn, key: str):
     form = conn.execute(
         """SELECT form_id,form_key,form_version,locale,status,item_count,
                   algorithm_version,validation_status
            FROM ualp_catalog_forms WHERE form_key = %s""", (key,)
     ).fetchone()
-    if not form or (key != ENABLED_FORM and not _ci_synthetic_riasec_allowed(conn, key)) or form["status"] != "DRAFT":
+    if not form or (key != ENABLED_FORM and not _ci_synthetic_riasec_allowed(conn, key)
+                    and not _owner_riasec_allowed(conn, key)) or form["status"] != "DRAFT":
         raise HTTPException(404, "Pilot form not available")
     items = conn.execute(
         """SELECT item_id,prompt,display_order,required FROM ualp_catalog_items
@@ -95,7 +192,7 @@ def fetch_form(conn, key: str):
         """SELECT option_key,label FROM ualp_catalog_options
            WHERE form_id=%s ORDER BY display_order""", (form["form_id"],)
     ).fetchall()
-    item_count = 60 if key == CI_SYNTHETIC_FORM else 21
+    item_count = 60 if key in (CI_SYNTHETIC_FORM, OWNER_RIASEC_FORM) else 21
     if (form["item_count"] != item_count or len(items) != item_count or len(options) != 5
             or len({x["item_id"] for x in items}) != item_count
             or (key == CI_SYNTHETIC_FORM and
@@ -103,14 +200,20 @@ def fetch_form(conn, key: str):
                  form["validation_status"] != "NOT_REVIEWED" or
                  form["form_version"] != "synthetic-only"))):
         raise HTTPException(503, "Pilot form catalog incomplete")
+    if key == OWNER_RIASEC_FORM:
+        _verify_owner_riasec_catalog(conn, form, items)
     return form, items, options
 
 @app.get("/api/catalog")
 def catalog(url: str = Depends(authorized)):
     with connect(url) as conn:
+        keys = [ENABLED_FORM]
+        if _owner_riasec_allowed(conn, OWNER_RIASEC_FORM):
+            keys.append(OWNER_RIASEC_FORM)
         rows = conn.execute(
             """SELECT form_key,form_version,validation_status,status,item_count
-               FROM ualp_catalog_forms WHERE form_key=%s""", (ENABLED_FORM,)
+               FROM ualp_catalog_forms WHERE form_key=ANY(%s) ORDER BY form_key""",
+            (keys,)
         ).fetchall()
     return {"version": APP_VERSION, "forms": rows,
             "notice": "Черновой исследовательский тест. Не использовать для найма."}
@@ -124,6 +227,12 @@ def form(form_key: str, url: str = Depends(authorized)):
         "formKey": f["form_key"], "formVersion": f["form_version"],
         "locale": f["locale"], "validationStatus": f["validation_status"],
         "pilotOnly": True,
+        "sourceAttribution": (
+            "O*NET Interest Profiler, USDOL/ETA; русский экспериментальный перевод "
+            "не валидирован. O*NET не одобряет UALP."
+            if form_key == OWNER_RIASEC_FORM else None
+        ),
+        "sourceLicense": LICENSE_URL if form_key == OWNER_RIASEC_FORM else None,
         "items": [{"itemId": x["item_id"], "prompt": x["prompt"],
                    "position": x["display_order"], "required": x["required"]}
                   for x in items],
@@ -180,14 +289,16 @@ def stored_result(conn, run_id: str):
         "scores": [{"scaleId": s["scale_id"], "key": s["scale_key"],
                     "label": s["label"], "mean": s["raw_score"],
                     "answered": s["answered_count"]} for s in scores],
-        "notice": ("Сырые суммы 0–40 для синтетического CI, без интерпретации."
+        "notice": ("Суммы интересов 0–40; русский перевод экспериментальный, не валидирован."
+                   if run["form_id"] == "FORM-000001"
+                   else "Сырые суммы 0–40 для синтетического CI, без интерпретации."
                    if run["algorithm_version"] == "RIASEC-SUM-v1"
                    else "Сырые оценки 0–4, только исследовательский TEST. Без норм и прогнозов профессий."),
     }
 
 @app.post("/api/runs", status_code=status.HTTP_201_CREATED)
 def submit(data: Submission, url: str = Depends(authorized)):
-    if data.formKey not in (ENABLED_FORM, CI_SYNTHETIC_FORM):
+    if data.formKey not in (ENABLED_FORM, CI_SYNTHETIC_FORM, OWNER_RIASEC_FORM):
         raise HTTPException(404, "Form unavailable")
     if data.consent is not True:
         raise HTTPException(422, "Explicit pilot consent required")
@@ -199,7 +310,8 @@ def submit(data: Submission, url: str = Depends(authorized)):
     ).encode("utf-8")).hexdigest()
     request_id = data.requestId
     with connect(url) as conn:
-        if data.formKey == CI_SYNTHETIC_FORM and not _ci_synthetic_riasec_allowed(conn, data.formKey):
+        if (data.formKey == CI_SYNTHETIC_FORM and not _ci_synthetic_riasec_allowed(conn, data.formKey)
+                or data.formKey == OWNER_RIASEC_FORM and not _owner_riasec_allowed(conn, data.formKey)):
             raise HTTPException(404, "Form unavailable")
         old = conn.execute(
             """SELECT run_id,form_id,payload_sha256 FROM ualp_assessment_runs
@@ -238,7 +350,7 @@ def submit(data: Submission, url: str = Depends(authorized)):
             (form_row["form_id"],)
         ).fetchall()
         try:
-            if data.formKey == CI_SYNTHETIC_FORM:
+            if data.formKey in (CI_SYNTHETIC_FORM, OWNER_RIASEC_FORM):
                 scales = conn.execute(
                     """SELECT scale_id,scale_key,is_parent FROM ualp_catalog_scales
                        WHERE form_id=%s ORDER BY scale_key""",
