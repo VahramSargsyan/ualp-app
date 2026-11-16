@@ -1,4 +1,4 @@
-# main.py | UALP 0.4.2-draft-resume-test
+# main.py | UALP 0.4.3-unified-history-test
 """UALP PostgreSQL-only private assessment TEST (no Sheets or Apps Script)."""
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from webapp.riasec_manifest import (
 
 from webapp.owner_session import COOKIE_NAME, SESSION_SECONDS, issue_session, valid_session
 
-APP_VERSION = "0.4.2-draft-resume-test"
+APP_VERSION = "0.4.3-unified-history-test"
 ENABLED_FORM = "UALP_WV21_RU_LIKERT"
 CI_SYNTHETIC_FORM = "CI_RIASEC_60_SYNTHETIC"
 OWNER_RIASEC_FORM = "ONET_SHORT_60_DIGITAL"
@@ -452,21 +452,27 @@ def result(run_id: uuid.UUID, url: str = Depends(authorized)):
 
 
 HISTORY_PAGE_SIZE = 10
+HISTORY_ALL_FORMS = "ALL"
 
 
 @app.get("/api/history")
 def history(
     response: Response,
     cursor: str | None = Query(default=None, min_length=1, max_length=128),
+    form_key: str = Query(default=ENABLED_FORM, alias="formKey", min_length=1, max_length=64),
     url: str = Depends(authorized),
 ):
-    """Read-only owner TEST history; never expose stored raw answers.
+    """Read-only owner TEST history across the two approved exploratory forms.
 
-    Created-at/run-id keyset pagination makes ties deterministic and bounds I/O.
-    The current single-owner TEST key is the only access control: not multi-user.
+    Default preserves old Work Values-only clients. The explicit ALL filter
+    combines only these two owner TEST methods, not arbitrary database forms.
+    Keyset pagination stays deterministic across both assessments.
     """
     response.headers["Cache-Control"] = "no-store, private"
-    params = [ENABLED_FORM]
+    if form_key not in (HISTORY_ALL_FORMS, ENABLED_FORM, OWNER_RIASEC_FORM):
+        raise HTTPException(422, "Invalid history form filter")
+    forms = [ENABLED_FORM, OWNER_RIASEC_FORM] if form_key == HISTORY_ALL_FORMS else [form_key]
+    params = [forms]
     paging = ""
     if cursor is not None:
         try:
@@ -483,10 +489,10 @@ def history(
     with connect(url) as conn:
         rows = conn.execute(
             """SELECT r.run_id, r.created_at, r.status, r.algorithm_version,
-                      f.form_version
+                      f.form_key, f.form_version
                FROM ualp_assessment_runs AS r
                JOIN ualp_catalog_forms AS f ON f.form_id = r.form_id
-               WHERE f.form_key = %s AND r.status = 'COMPLETED'
+               WHERE f.form_key = ANY(%s) AND r.status = 'COMPLETED'
             """ + paging +
             """ ORDER BY r.created_at DESC, r.run_id DESC LIMIT %s""",
             tuple(params),
@@ -502,6 +508,7 @@ def history(
                 "runId": str(row["run_id"]),
                 "completedAt": row["created_at"].isoformat(),
                 "status": row["status"],
+                "formKey": row["form_key"],
                 "formVersion": row["form_version"],
                 "scoringAlgorithmVersion": row["algorithm_version"],
             }
@@ -509,6 +516,7 @@ def history(
         ],
         "nextCursor": next_cursor,
         "pageSize": HISTORY_PAGE_SIZE,
+        "formKeyFilter": form_key,
         "notice": "История только для владельца TEST. Оценки экспериментальные.",
     }
 
