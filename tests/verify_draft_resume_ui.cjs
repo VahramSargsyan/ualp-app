@@ -95,6 +95,7 @@ const RIASEC='ONET_SHORT_60_DIGITAL', WV='UALP_WV21_RU_LIKERT';
  },PREFIX+WV);
  await page.locator('#consent').check();
  await page.getByRole('button',{name:'Продолжить Work Values'}).click();
+ await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Версия вопросов изменилась'));
  assert.match(await page.locator('#status').innerText(),/Версия вопросов изменилась/);
  assert.equal(await page.evaluate(k=>localStorage.getItem(k),PREFIX+WV),null);
  // Expired draft is removed lazily when the authenticated owner next opens the app.
