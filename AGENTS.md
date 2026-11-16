@@ -1,21 +1,9 @@
-# UALP maintainer entrypoint
+# UALP maintainer entrypoint — PostgreSQL candidate
 
-Universal baseline: **VAHRAM_APP_GOVERNANCE v1.1.0**.
-Canonical source: `VahramSargsyan/vbos-app/docs/governance/VAHRAM_APP_UNIVERSAL_GOVERNANCE_v1.1.0.md`.
-Bounded execution contract: `VahramSargsyan/vbos-app/docs/governance/BOUNDED_CHAT_WORK_CONTRACT_v1.1.0.md`.
+Read PROJECT_GOVERNANCE.md and the accepted Universal Governance v1.1.0 and BOUNDED_CHAT_WORK_CONTRACT v1.1.0 from VahramSargsyan/vbos-app/main before edits.
 
-Read `PROJECT_GOVERNANCE.md` before changes.
+Current owner decision 2026-11-15: a normal PostgreSQL database and standalone web app, zero paid cost; NO Apps Script or Google Sheets dependency. This project is in a non-merged feature branch, not PROD.
 
-UALP is a new application, but its assessment content already has a canonical Google Sheets database. Do not duplicate the live item bank into this repository.
+Architecture: one TEST-only Python/FastAPI application, one isolated Neon Free PostgreSQL project for runtime and approved versioned assessment content, Vercel Hobby Preview is the owner-approved TEST host. The previously created Render Free UALP shell is deprecated and must not be used for further testing; it remains separate from VBOS. The original attached UALP v0.7 workbook is source/reference; never commit private or unreviewed content to public GitHub.
 
-Core rules:
-1. Select a workflow mode before edits.
-2. No Codex/additional executors/paid APIs without explicit current permission.
-3. Google Sheets is the canonical assessment-content database for the MVP.
-4. This repository owns runtime code, schema contracts, tests, migration logic and documentation — not the live item bank.
-5. Never commit assessment responses, personal profiles, OAuth state, tokens, Script Properties or private exports.
-6. Do not expose objective answer keys, `isCorrect`, `scoreValue` or scoring internals to browser payloads.
-7. Persisted schema/ID/relation changes require a migration plan and rollback after the first runtime schema is accepted.
-8. Runtime writes go to a separate Runtime DB, not the canonical Assessment Library sheet.
-9. Static/local tests are not Apps Script runtime proof.
-10. Keep the first vertical slice bounded: one user -> one assessment run -> responses -> scale scores -> stored result.
+Never copy keys, secrets, access tokens, DB URLs, participant answers, profiles, objective item keys or private exports into source control. No Codex/additional executors/paid APIs without explicit permission. Testing one form != validated vocational guidance. Preserve source IDs, versions and statuses. Keep initial scope one user, one assessment, full response set, deterministic scores, idempotent persisted result. No PROD launch or promotion; deploy only Vercel Preview for the exact tested candidate.

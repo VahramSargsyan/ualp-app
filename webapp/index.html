@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UALP — PostgreSQL TEST</title>
+<style>
+:root{color-scheme:light;font:16px system-ui,-apple-system,Arial,sans-serif;color:#142844;background:#f3f6fa}
+*{box-sizing:border-box}body{margin:0}main{max-width:760px;padding:20px 14px 60px;margin:auto}
+h1{font-size:1.5rem;margin:0}h2{font-size:1.19rem;line-height:1.36}
+header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:18px}
+.tag{border-radius:40px;background:#e8edf8;color:#314866;font-size:.76rem;padding:7px 12px;white-space:nowrap}
+.card{background:white;border:1px solid #dce3ed;border-radius:16px;margin:15px 0;padding:19px;box-shadow:0 5px 18px #163e650c}
+.notice{border:1px solid #f1d6a0;background:#fff8eb;color:#694919;border-radius:10px;padding:13px;line-height:1.5}
+.muted{color:#64758a;font-size:.91rem}label{cursor:pointer}input[type=password]{width:100%;min-height:49px;border-radius:10px;border:1px solid #acbbd0;padding:12px;font:inherit}
+input[type=radio],input[type=checkbox]{accent-color:#245fac;width:21px;height:21px;flex-shrink:0}
+.choice{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #d1dbe7;border-radius:12px;margin:11px 0;min-height:54px}
+.choice:has(input:checked){border-color:#2961a8;background:#eef6ff}
+button{border:1px solid #b4c4d5;border-radius:11px;padding:11px 18px;font:inherit;min-height:46px;background:white;cursor:pointer}
+button.primary{background:#245fac;border-color:#245fac;color:white}
+button:disabled{opacity:.5;cursor:default}
+.actions{display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap;margin-top:20px}
+progress{width:100%;height:12px;accent-color:#245fac}
+.error{background:#ffecec;color:#9c2424;padding:14px;border-radius:10px;margin:12px 0}
+.scores{list-style:none;padding:0}.scores li{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e6eaf1;padding:11px 0}
+.score{font-weight:700;font-variant-numeric:tabular-nums}
+[hidden]{display:none!important}
+</style></head>
+<body><main>
+<header><h1>UALP</h1><span class="tag">PostgreSQL · Private TEST</span></header>
+<p class="notice">Исследовательский черновик, не валидированная диагностика. Результаты не предназначены для найма, медицинских решений или оценки интеллекта. Данные сохраняются в отдельной TEST-базе PostgreSQL.</p>
+<section class="card" id="welcome">
+<h2>Профессиональные ценности — пилот</h2>
+<p class="muted">Вход предназначен только владельцу проекта. Ключ хранится в памяти текущей вкладки и не сохраняется в браузере.</p>
+<label for="access">Ключ доступа TEST</label>
+<input id="access" type="password" autocomplete="off" placeholder="Введите приватный ключ">
+<p><label><input type="checkbox" id="consent"> Я понимаю экспериментальный статус теста и согласен сохранить мои ответы в TEST.</label></p>
+<div class="actions"><span class="muted">21 вопрос · примерно 5–7 минут</span><button class="primary" id="start" disabled>Начать</button></div>
+</section>
+<section class="card" id="questions" hidden>
+<p class="muted" id="position"></p><progress id="progress" value="0" max="21"></progress>
+<h2 id="prompt"></h2><div id="options"></div>
+<div class="actions"><button id="previous">Назад</button><button class="primary" id="next">Далее</button></div>
+</section>
+<section class="card" id="results" hidden>
+<h2>Результат сохранён в PostgreSQL</h2>
+<p class="muted">Ниже указаны только средние значения приоритетов по шести группам (0–4), без норм и рекомендаций.</p>
+<ul id="scores" class="scores"></ul><p class="muted" id="reference"></p>
+</section>
+<p id="status" role="status" aria-live="polite"></p>
+<script>
+(function(){
+'use strict';
+const el=(id)=>document.getElementById(id);
+const state={key:'',form:null,answers:{},index:0,busy:false,requestId:''};
+const setStatus=(s,error=false)=>{const p=el('status');p.textContent=s;p.className=error?'error':'muted';};
+const show=(id)=>{for(const x of ['welcome','questions','results'])el(x).hidden=x!==id;};
+const newId=()=>crypto.randomUUID();
+function locked(v){state.busy=v;el('start').disabled=v||!el('consent').checked||!el('access').value;el('next').disabled=v;el('previous').disabled=v;}
+async function api(url,method,body){
+  const res=await fetch(url,{method,headers:{'X-UALP-Access-Key':state.key,'Content-Type':'application/json'},
+    body:body?JSON.stringify(body):undefined,cache:'no-store'});
+  const data=await res.json().catch(()=>({detail:'Не удалось прочитать ответ сервера'}));
+  if(!res.ok)throw new Error((typeof data.detail==='string'?data.detail:'Ошибка')+' ('+res.status+')');
+  return data;
+}
+function render(){
+  const item=state.form.items[state.index];show('questions');
+  el('position').textContent='Вопрос '+(state.index+1)+' из '+state.form.items.length;
+  el('progress').value=state.index+1;el('progress').max=state.form.items.length;
+  el('prompt').textContent=item.prompt;
+  const container=el('options');container.replaceChildren();
+  state.form.options.forEach(opt=>{
+    const label=document.createElement('label');label.className='choice';
+    const radio=document.createElement('input');radio.type='radio';radio.name='answer';radio.value=opt.optionKey;
+    radio.checked=state.answers[item.itemId]===opt.optionKey;
+    radio.onchange=()=>{state.answers[item.itemId]=opt.optionKey;setStatus('');};
+    const text=document.createElement('span');text.textContent=opt.label;
+    label.append(radio,text);container.appendChild(label);
+  });
+  el('previous').disabled=state.index===0||state.busy;
+  el('next').textContent=state.index===state.form.items.length-1?'Сохранить ответы':'Далее';
+}
+el('access').oninput=()=>locked(state.busy);el('consent').onchange=()=>locked(state.busy);
+el('start').onclick=async()=>{
+  if(state.busy||!el('consent').checked||!el('access').value)return;
+  state.key=el('access').value;locked(true);setStatus('Загружаю вопросы...');
+  try{
+    state.form=await api('/api/forms/UALP_WV21_RU_LIKERT','GET');state.answers={};state.index=0;
+    state.requestId=newId();el('access').value='';render();setStatus('');
+  }catch(e){setStatus(e.message,true);}finally{locked(false);}
+};
+el('previous').onclick=()=>{if(!state.busy&&state.index>0){state.index--;render();}};
+el('next').onclick=async()=>{
+  if(state.busy)return;
+  const current=state.form.items[state.index];
+  if(!state.answers[current.itemId]){setStatus('Выберите один вариант ответа.',true);return;}
+  if(state.index<state.form.items.length-1){state.index++;render();setStatus('');return;}
+  const answers=state.form.items.map(i=>({itemId:i.itemId,optionKey:state.answers[i.itemId]}));
+  if(answers.some(x=>!x.optionKey)){setStatus('Ответьте на каждый вопрос.',true);return;}
+  locked(true);setStatus('Записываю ответы и рассчитываю результат...');
+  try{
+    const out=await api('/api/runs','POST',{requestId:state.requestId,formKey:'UALP_WV21_RU_LIKERT',consent:true,answers});
+    show('results');el('scores').replaceChildren();
+    out.scores.forEach(s=>{
+      const li=document.createElement('li'),name=document.createElement('span'),value=document.createElement('span');
+      name.textContent=s.label||s.key;value.className='score';value.textContent=Number(s.mean).toFixed(2);
+      li.append(name,value);el('scores').append(li);
+    });
+    el('reference').textContent='Алгоритм: '+out.scoringAlgorithmVersion+' · ID: '+out.runId;
+    state.key='';setStatus('Сохранено. Новое прохождение потребует повторного входа.');
+  }catch(e){setStatus(e.message,true);}finally{locked(false);}
+};
+})();
+</script></main></body></html>

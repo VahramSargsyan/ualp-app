@@ -1,0 +1,40 @@
+name: UALP Preview anonymous edge-gate verification
+on:
+  push:
+    branches:
+      - feature/ualp-mvp-001-vercel-test
+  workflow_dispatch:
+jobs:
+  preview-edge-anonymous:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    permissions:
+      contents: read
+    steps:
+      - name: Anonymous clients cannot bypass Vercel Preview SSO
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://ualp-app-git-feature-ualp-mvp-001-vercel-test-vahram-sargsyan.vercel.app'
+          for endpoint in '/health' '/api/catalog' '/api/forms/UALP_WV21_RU_LIKERT'; do
+            HTTP_STATUS=$(curl --silent --show-error --max-time 25 \
+              -D /tmp/ualp-edge-headers -o /tmp/ualp-edge-body -w '%{http_code}' "$BASE$endpoint")
+            UALP_STATUS="$HTTP_STATUS" UALP_ENDPOINT="$endpoint" python3 - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+          status=os.environ["UALP_STATUS"]
+          endpoint=os.environ["UALP_ENDPOINT"]
+          headers=open("/tmp/ualp-edge-headers",encoding="utf-8").read().splitlines()
+          targets=[x.split(":",1)[1].strip() for x in headers
+                   if x.lower().startswith("location:")]
+          if status not in ("302","303","307","308") or not targets:
+              raise AssertionError(f"Preview SSO redirect missing on {endpoint} (HTTP {status})")
+          target=urlsplit(targets[-1])
+          if target.hostname!="vercel.com" or target.path!="/sso-api":
+              raise AssertionError("Unexpected edge redirect (not the verified Vercel SSO gate)")
+          print("PASS: Preview denies unauthenticated",endpoint,"via Vercel SSO")
+          PY
+          done
+          echo 'PREVIEW_EDGE_SSO_PASS: 3 remote unauthenticated requests denied.'
+          echo 'NOTE: application-level HTTP 401/409/422 on live Vercel is NOT_RUN behind SSO.'
+          echo 'FastAPI API negative inputs and idempotent retries are validated in separate deterministic CI tests.'
