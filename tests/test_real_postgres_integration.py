@@ -581,10 +581,10 @@ def test_08_riasec_complete_http_atomic_idempotency_under_ci_guard(
     assert api.get("/api/history", headers=headers()).status_code == 200
 
     # Same-request concurrent writes serialize on PostgreSQL's UNIQUE index.
-    concurrent = dict(request, requestId=str(uuid.uuid4()))
+    simultaneous_request = dict(request, requestId=str(uuid.uuid4()))
     def send(_):
         with TestClient(app) as client:
-            response = client.post("/api/runs", headers=headers(), json=concurrent)
+            response = client.post("/api/runs", headers=headers(), json=simultaneous_request)
             return response.status_code, response.json()
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
         twins = list(pool.map(send, [0,1]))
@@ -595,5 +595,5 @@ def test_08_riasec_complete_http_atomic_idempotency_under_ci_guard(
     monkeypatch.delenv("UALP_CI_RIASEC_INTEGRATION")
     assert api.get(f"/api/forms/{key}", headers=headers()).status_code == 404
     assert api.post("/api/runs", headers=headers(), json=dict(
-        concurrent, requestId=str(uuid.uuid4()))).status_code == 404
+        simultaneous_request, requestId=str(uuid.uuid4()))).status_code == 404
     assert counts(isolated_postgres) == (18, 475, 397)
