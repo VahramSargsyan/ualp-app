@@ -318,3 +318,86 @@ def history(
         "pageSize": HISTORY_PAGE_SIZE,
         "notice": "История только для владельца TEST. Оценки экспериментальные.",
     }
+
+
+MAX_PROFILE_METHODS = 12
+
+
+@app.get("/api/profile")
+def owner_profile(response: Response, url: str = Depends(authorized)):
+    """Derive a private single-owner snapshot from actual persisted completions.
+
+    No identity, prediction, norms, answer replay, or cross-instrument scoring.
+    A shared TEST key must never be mistaken for multi-user authorization.
+    """
+    response.headers["Cache-Control"] = "private, no-store"
+    with connect(url) as conn:
+        latest = conn.execute(
+            """WITH ranked AS (
+                 SELECT r.run_id, r.form_id, r.created_at, r.algorithm_version,
+                        count(*) OVER (PARTITION BY r.form_id) AS run_count,
+                        row_number() OVER (
+                            PARTITION BY r.form_id
+                            ORDER BY r.created_at DESC, r.run_id DESC
+                        ) AS position
+                 FROM ualp_assessment_runs AS r
+                 WHERE r.status = 'COMPLETED'
+               )
+               SELECT ranked.run_id, ranked.created_at, ranked.algorithm_version,
+                      ranked.run_count, f.form_key, f.form_version,
+                      f.status AS form_status, f.validation_status
+               FROM ranked
+               JOIN ualp_catalog_forms AS f ON f.form_id = ranked.form_id
+               WHERE ranked.position = 1
+               ORDER BY ranked.created_at DESC, ranked.run_id DESC
+               LIMIT %s""",
+            (MAX_PROFILE_METHODS + 1,),
+        ).fetchall()
+        has_more = len(latest) > MAX_PROFILE_METHODS
+        latest = latest[:MAX_PROFILE_METHODS]
+        scores_by_run = defaultdict(list)
+        if latest:
+            run_ids = [row["run_id"] for row in latest]
+            parent_scores = conn.execute(
+                """SELECT sc.run_id, sc.scale_id, c.scale_key, c.label,
+                          sc.raw_score, sc.answered_count
+                   FROM ualp_scale_scores AS sc
+                   JOIN ualp_catalog_scales AS c ON c.scale_id = sc.scale_id
+                   WHERE sc.run_id = ANY(%s::uuid[]) AND c.is_parent = true
+                   ORDER BY sc.run_id, c.scale_key""",
+                (run_ids,),
+            ).fetchall()
+            for score in parent_scores:
+                scores_by_run[score["run_id"]].append({
+                    "scaleId": score["scale_id"],
+                    "key": score["scale_key"],
+                    "label": score["label"],
+                    "mean": score["raw_score"],
+                    "answered": score["answered_count"],
+                })
+    methods = [
+        {
+            "formKey": row["form_key"],
+            "formVersion": row["form_version"],
+            "formStatus": row["form_status"],
+            "validationStatus": row["validation_status"],
+            "completedRuns": row["run_count"],
+            "latestRunId": str(row["run_id"]),
+            "latestAt": row["created_at"].isoformat(),
+            "scoringAlgorithmVersion": row["algorithm_version"],
+            "parentScores": scores_by_run[row["run_id"]],
+        }
+        for row in latest
+    ]
+    return {
+        "ownerMode": "SINGLE_OWNER_TEST",
+        "methods": methods,
+        "methodCount": len(methods),
+        "completedRuns": sum(row["completedRuns"] for row in methods),
+        "hasMoreMethods": has_more,
+        "notice": (
+            "Исследовательские сырые результаты без норм, IQ, "
+            "диагнозов и рекомендаций. Значения разных методик "
+            "нельзя непосредственно сравнивать."
+        ),
+    }
