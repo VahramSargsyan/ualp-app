@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- index.html | UALP 0.4.2-draft-resume-test -->
+<!-- index.html | UALP 0.4.3-unified-history-test -->
 <html lang="ru">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>UALP — PostgreSQL TEST</title>
@@ -13,6 +13,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;ma
 .notice{border:1px solid #f1d6a0;background:#fff8eb;color:#694919;border-radius:10px;padding:13px;line-height:1.5}
 .muted{color:#64758a;font-size:.91rem}label{cursor:pointer}input[type=password]{width:100%;min-height:49px;border-radius:10px;border:1px solid #acbbd0;padding:12px;font:inherit}
 input[type=radio],input[type=checkbox]{accent-color:#245fac;width:21px;height:21px;flex-shrink:0}
+select{max-width:100%;min-height:48px;padding:10px;border:1px solid #acbbd0;border-radius:10px;background:white;font:inherit;color:inherit}
 .choice{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #d1dbe7;border-radius:12px;margin:11px 0;min-height:54px}
 .choice:has(input:checked){border-color:#2961a8;background:#eef6ff}
 button{border:1px solid #b4c4d5;border-radius:11px;padding:11px 18px;font:inherit;min-height:46px;background:white;cursor:pointer}
@@ -47,7 +48,7 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <p class="muted">Черновик содержит выбранные ответы без шифрования только в этом браузере, не в PostgreSQL. Восстановление доступно до 7 дней после последнего ответа; просроченный черновик удаляется при следующем входе. Не включай на общем устройстве. «Выйти» удаляет локальные черновики.</p>
 <div id="draftResumes" hidden aria-live="polite"></div>
 <p class="muted">Посмотреть предыдущие прохождения можно без нового теста: достаточно войти в приложение.</p>
-<div class="actions"><button id="profileOpen" disabled>Мой профиль</button><button id="historyOpen" disabled>История Work Values</button></div>
+<div class="actions"><button id="profileOpen" disabled>Мой профиль</button><button id="historyOpen" disabled>История тестов</button></div>
 <div class="actions"><button class="primary" id="start" disabled>Начать Work Values · 21</button><button class="primary" id="startRiasec" disabled>Начать RIASEC · 60</button></div>
 <p class="muted">RIASEC: O*NET Interest Profiler (USDOL/ETA), русский экспериментальный перевод, только для личного исследования. Ни O*NET, ни USDOL не одобряют UALP.</p>
 </section>
@@ -57,11 +58,17 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <div class="profile-metrics" id="profileSummary" aria-live="polite"></div>
 <div id="profileMethods"></div>
 <p class="muted profile-pending" id="profilePending"></p>
-<div class="actions"><button id="profileHome">На главную</button><button id="profileHistory">История Work Values</button></div>
+<div class="actions"><button id="profileHome">На главную</button><button id="profileHistory">История тестов</button></div>
 </section>
 <section class="card" id="history" hidden>
 <h2>История прохождений</h2>
-<p class="muted">Сохранённые прохождения Work Values. Отображаются только даты и версия. Нажми «Открыть», чтобы увидеть ранее рассчитанные шесть показателей.</p>
+<p class="muted">История сохранённых прохождений Work Values и RIASEC. Выбери методику или все сразу. Можно открыть каждый прежний результат без нового теста.</p>
+<p><label for="historyFilter">Какие результаты показать</label></p>
+<select id="historyFilter" aria-label="Фильтр истории">
+<option value="ALL">Все методики</option>
+<option value="UALP_WV21_RU_LIKERT">Work Values · 21</option>
+<option value="ONET_SHORT_60_DIGITAL">RIASEC · 60</option>
+</select>
 <ul id="historyList" class="history-list"></ul>
 <p id="historyEmpty" class="muted" hidden>Сохранённых прохождений пока нет.</p>
 <div class="actions"><button id="historyHome">На главную</button><button id="historyProfile" hidden>К профилю</button><button id="historyMore" hidden>Показать ещё</button></div>
@@ -81,7 +88,7 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <div class="actions"><button id="resultHome">На главную</button><button id="resultHistory" hidden>К истории</button><button id="resultProfile" hidden>К профилю</button></div>
 </section>
 <p id="status" role="status" aria-live="polite"></p>
-<p class="muted" id="buildVersion">UALP 0.4.2-draft-resume-test · TEST · мобильный/настольный веб</p>
+<p class="muted" id="buildVersion">UALP 0.4.3-unified-history-test · TEST · мобильный/настольный веб</p>
 <script>
 (function(){
 'use strict';
@@ -96,6 +103,7 @@ function locked(v){
   el('startRiasec').disabled=v||!el('consent').checked||!state.authenticated;
   el('historyOpen').disabled=v||!state.authenticated;el('profileOpen').disabled=v||!state.authenticated;
   for(const id of ['historyMore','next','previous','questionHome','logout','login'])el(id).disabled=v;
+  el('historyFilter').disabled=v;
   el('loginFields').hidden=state.authenticated;el('signedIn').hidden=!state.authenticated;
   el('logout').hidden=!state.authenticated;
 }
@@ -278,19 +286,25 @@ function prettyDate(iso){
 }
 async function loadHistory(reset){
   const cursor=reset?null:state.historyCursor;
-  const url='/api/history'+(cursor?'?cursor='+encodeURIComponent(cursor):'');
-  const data=await api(url,'GET');
-  if(!Array.isArray(data.items))throw new Error('Неверный ответ истории');
+  const selected=el('historyFilter').value;
+  const query=new URLSearchParams({formKey:selected});
+  if(cursor)query.set('cursor',cursor);
+  const data=await api('/api/history?'+query.toString(),'GET');
+  if(!Array.isArray(data.items)||data.formKeyFilter!==selected)
+    throw new Error('Неверный ответ истории или фильтра');
   const list=el('historyList');
   if(reset)list.replaceChildren();
   data.items.forEach(entry=>{
     const li=document.createElement('li'),info=document.createElement('div');
     const date=document.createElement('strong'),meta=document.createElement('p');
     date.textContent=prettyDate(entry.completedAt);
-    meta.className='muted';meta.textContent='Версия формы: '+entry.formVersion+' · Завершён';
+    const method=entry.formKey==='ONET_SHORT_60_DIGITAL'?'RIASEC · 60':
+      entry.formKey==='UALP_WV21_RU_LIKERT'?'Work Values · 21':null;
+    if(!method)throw new Error('Неизвестная методика в истории');
+    meta.className='muted';meta.textContent=method+' · Версия: '+entry.formVersion+' · Завершён';
     info.append(date,meta);
     const open=document.createElement('button');open.type='button';open.textContent='Открыть';
-    open.setAttribute('aria-label','Открыть результат за '+date.textContent);
+    open.setAttribute('aria-label','Открыть '+method+' за '+date.textContent);
     open.onclick=async()=>{
       if(state.busy)return;
       locked(true);setStatus('Загружаю сохранённый результат...');
@@ -438,6 +452,12 @@ el('historyOpen').onclick=async()=>{
     state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
     el('historyProfile').hidden=true;show('history');setStatus('');
   }catch(e){setStatus(e.message,true);}finally{locked(false);}
+};
+el('historyFilter').onchange=async()=>{
+  if(state.busy)return;
+  locked(true);setStatus('Применяю фильтр истории...');
+  try{await loadHistory(true);setStatus('');}
+  catch(e){setStatus(e.message,true);}finally{locked(false);}
 };
 el('historyMore').onclick=async()=>{
   if(state.busy||!state.historyCursor)return;
