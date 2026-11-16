@@ -56,3 +56,4 @@ jobs:
             sleep 1
           done
           NODE_PATH=/tmp/ualp-browser-check/node_modules node tests/verify_owner_session_ui.cjs
+          NODE_PATH=/tmp/ualp-browser-check/node_modules node tests/verify_draft_resume_ui.cjs
