@@ -257,3 +257,105 @@ def test_05_history_paginates_and_reopens_exact_scores(api, isolated_postgres):
     assert reopened.json()["status"] == "COMPLETED"
     assert len(reopened.json()["scores"]) == 6
     assert counts(isolated_postgres) == before
+
+
+
+def test_06_profile_aggregates_only_stored_assessments(api, isolated_postgres):
+    """Actual HTTP+PG: empty coverage not invented, latest updates, second method is independent."""
+    assert api.get("/api/profile").status_code == 401
+    assert api.get("/api/profile", headers={"X-UALP-Access-Key":"incorrect"}).status_code == 401
+
+    before = counts(isolated_postgres)
+    assert before == (13, 273, 351)
+    r = api.get("/api/profile", headers=headers())
+    assert r.status_code == 200, r.text
+    assert r.headers.get("cache-control") == "private, no-store"
+    profile = r.json()
+    assert profile["ownerMode"] == "SINGLE_OWNER_TEST"
+    assert profile["methodCount"] == 1
+    assert profile["completedRuns"] == 13
+    assert profile["hasMoreMethods"] is False
+    assert len(profile["methods"]) == 1
+    values = profile["methods"][0]
+    assert values["formKey"] == ENABLED_FORM
+    assert values["completedRuns"] == 13
+    assert values["validationStatus"] == "NOT_REVIEWED"
+    assert len(values["parentScores"]) == 6
+    assert "ONET_SHORT_60_DIGITAL" not in r.text
+    assert "ICAR16_DIGITAL" not in r.text
+    for leaked in ("requestId","payload_sha256","optionKey","answers","score_value","weight"):
+        assert leaked not in r.text
+    assert counts(isolated_postgres) == before
+
+    more = payload()
+    more["answers"][0]["optionKey"] = "V4"
+    saved = api.post("/api/runs", json=more, headers=headers())
+    assert saved.status_code == 201, saved.text
+    newest_id = saved.json()["runId"]
+    newer = api.get("/api/profile", headers=headers())
+    assert newer.status_code == 200
+    state = newer.json()
+    assert state["methodCount"] == 1 and state["completedRuns"] == 14
+    latest = state["methods"][0]
+    assert latest["latestRunId"] == newest_id
+    original_scores = {x["scaleId"]: x["mean"] for x in saved.json()["scores"]}
+    latest_scores = {x["scaleId"]: x["mean"] for x in latest["parentScores"]}
+    assert original_scores == latest_scores
+
+    # A SECOND synthetic assessment is stored with its own valid parent score.
+    # It does not imply that RIASEC/ICAR is supported or validated.
+    second_form = "CI-PROFILE-EXTRA"
+    second_key = "CI_PROFILE_EXTRA"
+    second_item = "CI-PROFILE-ITEM"
+    second_scale = "CI-PROFILE-PARENT"
+    second_run = uuid.uuid4()
+    with psycopg.connect(isolated_postgres) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""INSERT INTO ualp_catalog_forms
+                (form_id,form_key,form_version,locale,status,validation_status,item_count,algorithm_version)
+                VALUES (%s,%s,'synthetic-v1','ru','DRAFT','NOT_REVIEWED',1,'SYNTHETIC-v1')""",
+                (second_form,second_key))
+            cur.execute("""INSERT INTO ualp_catalog_items
+                (item_id,form_id,prompt,display_order,required) VALUES (%s,%s,'Synthetic',1,true)""",
+                (second_item,second_form))
+            cur.execute("""INSERT INTO ualp_catalog_options
+                (form_id,option_key,label,score_value,display_order) VALUES (%s,'V2','Synthetic',2,1)""",
+                (second_form,))
+            cur.execute("""INSERT INTO ualp_catalog_scales
+                (scale_id,form_id,scale_key,label,is_parent) VALUES (%s,%s,'P1','Only synthetic score',true)""",
+                (second_scale,second_form))
+            cur.execute("""INSERT INTO ualp_catalog_links
+                (item_id,scale_id,weight,direction) VALUES (%s,%s,1,'POSITIVE')""",
+                (second_item,second_scale))
+            cur.execute("""INSERT INTO ualp_catalog_scoring_rules
+                (form_id,scale_id,method,min_items,algorithm_version,status)
+                VALUES (%s,%s,'MEAN',1,'SYNTHETIC-v1','DRAFT')""",
+                (second_form,second_scale))
+            cur.execute("""INSERT INTO ualp_assessment_runs
+                (run_id,request_id,form_id,payload_sha256,consent,status,algorithm_version)
+                VALUES (%s,%s,%s,%s,true,'COMPLETED','SYNTHETIC-v1')""",
+                (second_run,uuid.uuid4(),second_form,"f"*64))
+            cur.execute("""INSERT INTO ualp_responses
+                (run_id,item_id,option_key) VALUES (%s,%s,'V2')""",
+                (second_run,second_item))
+            cur.execute("""INSERT INTO ualp_scale_scores
+                (run_id,scale_id,raw_score,answered_count,algorithm_version)
+                VALUES (%s,%s,2,1,'SYNTHETIC-v1')""",
+                (second_run,second_scale))
+
+    final_count = counts(isolated_postgres)
+    assert final_count == (15, 295, 379)
+    response = api.get("/api/profile", headers=headers())
+    assert response.status_code == 200, response.text
+    final_profile = response.json()
+    assert final_profile["methodCount"] == 2
+    assert final_profile["completedRuns"] == 15
+    by_method = {m["formKey"]:m for m in final_profile["methods"]}
+    assert set(by_method) == {ENABLED_FORM, second_key}
+    assert by_method[ENABLED_FORM]["completedRuns"] == 14
+    assert by_method[ENABLED_FORM]["latestRunId"] == newest_id
+    assert by_method[second_key]["completedRuns"] == 1
+    assert by_method[second_key]["latestRunId"] == str(second_run)
+    assert len(by_method[second_key]["parentScores"]) == 1
+    assert float(by_method[second_key]["parentScores"][0]["mean"]) == 2
+    assert counts(isolated_postgres) == final_count
