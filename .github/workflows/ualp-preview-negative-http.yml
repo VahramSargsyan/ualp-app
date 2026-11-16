@@ -1,0 +1,44 @@
+name: UALP Preview public-negative HTTP smoke
+on:
+  push:
+    branches:
+      - feature/ualp-mvp-001-vercel-test
+  workflow_dispatch:
+jobs:
+  preview-anonymous:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    permissions:
+      contents: read
+    steps:
+      - name: Verify publicly reachable TEST health without secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://ualp-app-git-feature-ualp-mvp-001-vercel-test-vahram-sargsyan.vercel.app'
+          curl --fail --silent --show-error --max-time 25 "$BASE/health" > /tmp/ualp-health.json
+          python3 - <<'PY'
+          import json
+          with open("/tmp/ualp-health.json", encoding="utf-8") as f:
+              response = json.load(f)
+          assert response["status"] == "TEST_ONLY", response
+          assert response["database"] == "PostgreSQL", response
+          assert response["version"] == "0.1.0-postgres-test", response
+          print("TEST-only health endpoint responds; no secret was used")
+          PY
+      - name: Private endpoints reject requests without access key
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://ualp-app-git-feature-ualp-mvp-001-vercel-test-vahram-sargsyan.vercel.app'
+          for endpoint in '/api/catalog' '/api/forms/UALP_WV21_RU_LIKERT' '/api/runs/11111111-1111-4111-8111-111111111111'; do
+            STATUS=$(curl --silent --show-error --max-time 25 -o /tmp/ualp-anon.json -w '%{http_code}' "$BASE$endpoint")
+            test "$STATUS" = "401" || { echo "FAIL: $endpoint returned $STATUS (expected 401)"; exit 1; }
+            python3 - <<'PY'
+          import json
+          with open("/tmp/ualp-anon.json", encoding="utf-8") as f:
+              response = json.load(f)
+          assert response.get("detail") == "Access denied", "Unexpected response from API auth gate"
+          PY
+          done
+          echo "PASS: 3 real HTTP endpoints deny unauthenticated callers"
