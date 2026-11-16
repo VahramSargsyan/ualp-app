@@ -492,3 +492,108 @@ def test_07_synthetic_riasec_catalog_install_keeps_work_values_intact(
     assert counts(isolated_postgres) == (
         prior[0] + 1, prior[1] + 60, prior[2] + 6
     )
+
+
+
+def test_08_riasec_complete_http_atomic_idempotency_under_ci_guard(
+    api, isolated_postgres, monkeypatch,
+):
+    """Real HTTP -> PG 18 synthetic RIASEC in strictly gated localhost CI only."""
+    from webapp.riasec_scoring import RIASEC_AREAS
+    key = "CI_RIASEC_60_SYNTHETIC"
+    prior = counts(isolated_postgres)
+    assert prior == (16, 355, 385)
+    assert api.get(f"/api/forms/{key}", headers=headers()).status_code == 404
+
+    # Only temporary local CI; never set this flag on Vercel, Neon or real users.
+    monkeypatch.setenv("UALP_CI_RIASEC_INTEGRATION", "1")
+    form = api.get(f"/api/forms/{key}", headers=headers())
+    assert form.status_code == 200, form.text
+    assert len(form.json()["items"]) == 60
+    assert len(form.json()["options"]) == 5
+    assert "score_value" not in form.text and "weight" not in form.text
+
+    def answers():
+        return [
+            {"itemId": f"CI_RIASEC_ITEM_{n:02d}", "optionKey": f"OPT_{n // 10 % 5}"}
+            for n in range(60)
+        ]
+
+    request = {
+        "requestId": str(uuid.uuid4()),
+        "formKey": key,
+        "consent": True,
+        "answers": answers(),
+    }
+    saved = api.post("/api/runs", headers=headers(), json=request)
+    assert saved.status_code == 201, saved.text
+    out = saved.json()
+    assert out["status"] == "COMPLETED"
+    assert out["scoringAlgorithmVersion"] == "RIASEC-SUM-v1"
+    scores = {s["key"]: int(s["mean"]) for s in out["scores"]}
+    assert scores == {"R": 0, "I": 10, "A": 20, "S": 30, "E": 40, "C": 0}
+    assert all(s["answered"] == 10 for s in out["scores"])
+    assert counts(isolated_postgres) == (17, 415, 391)
+
+    repeat = api.post("/api/runs", headers=headers(), json=request)
+    assert repeat.status_code == 201
+    assert repeat.json() == out
+    assert counts(isolated_postgres) == (17, 415, 391)
+
+    conflicting = dict(request, answers=answers())
+    conflicting["answers"][0]["optionKey"] = "OPT_4"
+    error = api.post("/api/runs", headers=headers(), json=conflicting)
+    assert error.status_code == 409
+    assert counts(isolated_postgres) == (17, 415, 391)
+
+    incomplete = dict(request, requestId=str(uuid.uuid4()), answers=answers()[:-1])
+    assert api.post("/api/runs", headers=headers(), json=incomplete).status_code == 422
+    unknown = dict(request, requestId=str(uuid.uuid4()), answers=answers())
+    unknown["answers"][0]["optionKey"] = "NO_SUCH_OPTION"
+    assert api.post("/api/runs", headers=headers(), json=unknown).status_code == 422
+    assert counts(isolated_postgres) == (17, 415, 391)
+
+    with psycopg.connect(isolated_postgres) as conn:
+        recomputed = conn.execute(
+            """SELECT s.scale_key, count(*)::int,
+                      sum(o.score_value)
+               FROM ualp_responses r
+               JOIN ualp_catalog_items i ON i.item_id=r.item_id
+               JOIN ualp_catalog_options o ON o.form_id=i.form_id
+                  AND o.option_key=r.option_key
+               JOIN ualp_catalog_links l ON l.item_id=r.item_id
+               JOIN ualp_catalog_scales s ON s.scale_id=l.scale_id
+               WHERE r.run_id=%s GROUP BY s.scale_key""",
+            (uuid.UUID(out["runId"]),),
+        ).fetchall()
+    assert {k:(cnt,int(total)) for k,cnt,total in recomputed} == {
+        k: (10,v) for k,v in scores.items()
+    }
+
+    profile = api.get("/api/profile", headers=headers())
+    assert profile.status_code == 200
+    by_form = {m["formKey"]:m for m in profile.json()["methods"]}
+    assert by_form[key]["completedRuns"] == 2
+    assert by_form[key]["latestRunId"] == out["runId"]
+    assert len(by_form[key]["parentScores"]) == len(RIASEC_AREAS)
+    assert len(by_form[ENABLED_FORM]["parentScores"]) == 6
+    assert by_form[ENABLED_FORM]["completedRuns"] == 14
+    assert api.get("/api/history", headers=headers()).status_code == 200
+
+    # Same-request concurrent writes serialize on PostgreSQL's UNIQUE index.
+    concurrent = dict(request, requestId=str(uuid.uuid4()))
+    def send(_):
+        with TestClient(app) as client:
+            response = client.post("/api/runs", headers=headers(), json=concurrent)
+            return response.status_code, response.json()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        twins = list(pool.map(send, [0,1]))
+    assert [x[0] for x in twins] == [201,201], twins
+    assert twins[0][1] == twins[1][1]
+    assert counts(isolated_postgres) == (18, 475, 397)
+
+    monkeypatch.delenv("UALP_CI_RIASEC_INTEGRATION")
+    assert api.get(f"/api/forms/{key}", headers=headers()).status_code == 404
+    assert api.post("/api/runs", headers=headers(), json=dict(
+        concurrent, requestId=str(uuid.uuid4()))).status_code == 404
+    assert counts(isolated_postgres) == (18, 475, 397)
