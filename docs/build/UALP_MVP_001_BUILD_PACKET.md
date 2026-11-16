@@ -108,3 +108,17 @@ ROLLBACK_NOW: Revert only these source-gate preparation commits; MVP-003 and liv
 UNRESOLVED_DECISIONS / BLOCKERS: (1) RU translation human review and validation not passed; (2) approved source import and migration are not yet implemented; (3) final language and internal pilot constraints require owner product decision if moving beyond source prep.
 PAID_API_BUDGET: 0; EXECUTOR_PERMISSION: current assistant only.
 AUTHORIZATION_END: report current source gate and stop. No PROD/main merge or unreviewed survey publication.
+
+
+### MVP-004 continuation — Russian editorial v0.2 and CI full HTTP adapter
+
+DATE: 2026-11-16
+MODE: IMPLEMENT_FEATURE for dormant adapter/CI only; editorial preparation is not an independent bilingual approval.
+CURRENT_HEAD_AT_START: a4c806251a46c66a89d44cd97ef07884d7ef1ed5
+CONTENT_OUTPUT: Private owner-only Google review Sheet ID 1kwbz7MymuOrJZwo0FUn8AcMSqxePFUKdJyFwGFg2Jwc, tab Вопросы 60 columns O:Q. 60/60 editor draft proposed wordings; nine suggested edits, one additional explanatory note. Response tab Варианты 5 columns J:L has one midpoint wording proposal. All canonical statuses DRAFT/NOT_REVIEWED, reviewers PENDING, canonical library remains unchanged.
+TECHNICAL_OUTPUT: Full HTTP GET form and POST 60-item SUM scoring with PostgreSQL persistence, idempotent retries, conflict detection, concurrent duplicate recovery, history/profile coexistence, readable six scores and fail-closed rubric checks. This is NOT enabled for original content or user-entered RIASEC.
+CRITICAL_EXPOSURE_FENCE: The only second form key supported by code is CI_RIASEC_60_SYNTHETIC, and even this is rejected unless UALP_ENV=TEST, UALP_CI_MODE=EPHEMERAL_POSTGRES, UALP_CI_RIASEC_INTEGRATION=1, and the active PostgreSQL connection is localhost/127.0.0.1 with database ualp_ci and user postgres. Production/Neon/Vercel clients cannot opt into it by setting a key or request parameter. Work Values ENABLED_FORM unchanged.
+REAL_TEST_LEVEL: GitHub Actions workflow ualp-real-pg-ci.yml with temporary localhost postgres:18 and fabricated form/question/answer IDs only; test_08 passes 60-answer HTTP lifecycle, SQL score recomputation, authorization/disabled form, retries, conflict and simultaneous POSTs. No actual user data, source translations or copyrighted original questions in public repo.
+SCHEMA_IMPACT: NONE at this preparation stage; no Neon writes/migrations.
+BACKUP / ROLLBACK: No live DB change or backup required. Revert only the CI adapter/verification commits and discard independent private editorial proposal Sheet if needed; previous v0.3 TEST and canonical UALP v0.7 remain.
+OPEN_BLOCKER: Developer License validation for the modified RU content is NOT completed; independent bilingual semantic review and intended-purpose evaluation are NOT_RUN. No release of RU content, no authenticated user-facing RIASEC questionnaire and no main/PROD promotion.
