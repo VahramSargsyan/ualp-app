@@ -597,3 +597,128 @@ def test_08_riasec_complete_http_atomic_idempotency_under_ci_guard(
     assert api.post("/api/runs", headers=headers(), json=dict(
         simultaneous_request, requestId=str(uuid.uuid4()))).status_code == 404
     assert counts(isolated_postgres) == (18, 475, 397)
+
+
+
+def test_09_unused_catalog_guarded_rollback_in_ephemeral_postgres(
+    api, isolated_postgres,
+):
+    """Rehearse *unused* RIASEC catalog-only rollback, never delete a real run.
+
+    CI-local PostgreSQL only. All new IDs are unique synthetic placeholders.
+    The real owner's Neon backups, rows and catalog are never touched here.
+    """
+    from webapp.riasec_scoring import RIASEC_AREAS
+    old_runs = counts(isolated_postgres)
+    assert old_runs == (18, 475, 397)
+    form_id, form_key = "CI_ROLLBACK_FORM_60", "CI_ROLLBACK_RIASEC_60"
+    item_ids = [f"CI_ROLLBACK_ITEM_{i:02d}" for i in range(60)]
+    scale_ids = [f"CI_ROLLBACK_SCALE_{area}" for area in RIASEC_AREAS]
+    with psycopg.connect(isolated_postgres) as conn:
+        old_catalog = tuple(conn.execute(
+            """SELECT
+               (SELECT count(*) FROM ualp_catalog_forms),
+               (SELECT count(*) FROM ualp_catalog_items),
+               (SELECT count(*) FROM ualp_catalog_options),
+               (SELECT count(*) FROM ualp_catalog_scales),
+               (SELECT count(*) FROM ualp_catalog_links),
+               (SELECT count(*) FROM ualp_catalog_scoring_rules)"""
+        ).fetchone())
+        # Existing old user Work Values data is also preserved by the rollback.
+        old_work_values = tuple(conn.execute(
+            """SELECT count(*),
+               (SELECT count(*) FROM ualp_responses
+                 WHERE run_id IN (
+                   SELECT run_id FROM ualp_assessment_runs
+                   WHERE form_id=%s)),
+               (SELECT count(*) FROM ualp_scale_scores
+                 WHERE run_id IN (
+                   SELECT run_id FROM ualp_assessment_runs
+                   WHERE form_id=%s))
+               FROM ualp_assessment_runs WHERE form_id=%s""",
+            (FORM, FORM, FORM),
+        ).fetchone())
+        assert old_work_values[0] == 14
+        with conn.cursor() as cur:
+            cur.execute("""INSERT INTO ualp_catalog_forms
+                (form_id,form_key,form_version,locale,status,validation_status,
+                 item_count,algorithm_version)
+                VALUES (%s,%s,'CI-ROLLBACK-only','ru','DRAFT',
+                        'NOT_REVIEWED',60,'RIASEC-SUM-v1')""",
+                (form_id, form_key))
+            cur.executemany("""INSERT INTO ualp_catalog_items
+                (item_id,form_id,prompt,display_order,required)
+                VALUES (%s,%s,%s,%s,true)""",
+                [(item, form_id, f"Synthetic rollback placeholder {i+1}", i+1)
+                 for i,item in enumerate(item_ids)])
+            cur.executemany("""INSERT INTO ualp_catalog_options
+                (form_id,option_key,label,score_value,display_order)
+                VALUES (%s,%s,%s,%s,%s)""",
+                [(form_id, f"CI_OPT_{i}", f"Dummy {i}", i, i+1)
+                 for i in range(5)])
+            cur.executemany("""INSERT INTO ualp_catalog_scales
+                (scale_id,form_id,scale_key,label,is_parent)
+                VALUES (%s,%s,%s,%s,true)""",
+                [(sid,form_id,area,f"Dummy scale {area}")
+                 for area,sid in zip(RIASEC_AREAS, scale_ids)])
+            cur.executemany("""INSERT INTO ualp_catalog_links
+                (item_id,scale_id,weight,direction)
+                VALUES (%s,%s,1,'POSITIVE')""",
+                [(item, scale_ids[i // 10]) for i,item in enumerate(item_ids)])
+            cur.executemany("""INSERT INTO ualp_catalog_scoring_rules
+                (form_id,scale_id,method,min_items,algorithm_version,status)
+                VALUES (%s,%s,'SUM',10,'RIASEC-SUM-v1','DRAFT')""",
+                [(form_id,scale_id) for scale_id in scale_ids])
+            assert conn.execute(
+                "SELECT count(*) FROM ualp_catalog_items WHERE form_id=%s",
+                (form_id,),
+            ).fetchone()[0] == 60
+            # A rollback is allowed only when no live user run references this form.
+            assert conn.execute(
+                "SELECT count(*) FROM ualp_assessment_runs WHERE form_id=%s",
+                (form_id,),
+            ).fetchone()[0] == 0
+            cur.execute("DELETE FROM ualp_catalog_scoring_rules WHERE form_id=%s",
+                        (form_id,))
+            assert cur.rowcount == 6
+            cur.execute("""DELETE FROM ualp_catalog_links WHERE item_id IN
+                           (SELECT item_id FROM ualp_catalog_items WHERE form_id=%s)""",
+                        (form_id,))
+            assert cur.rowcount == 60
+            cur.execute("DELETE FROM ualp_catalog_options WHERE form_id=%s",
+                        (form_id,))
+            assert cur.rowcount == 5
+            cur.execute("DELETE FROM ualp_catalog_items WHERE form_id=%s",
+                        (form_id,))
+            assert cur.rowcount == 60
+            cur.execute("DELETE FROM ualp_catalog_scales WHERE form_id=%s",
+                        (form_id,))
+            assert cur.rowcount == 6
+            cur.execute("DELETE FROM ualp_catalog_forms WHERE form_id=%s",
+                        (form_id,))
+            assert cur.rowcount == 1
+        new_catalog = tuple(conn.execute(
+            """SELECT
+               (SELECT count(*) FROM ualp_catalog_forms),
+               (SELECT count(*) FROM ualp_catalog_items),
+               (SELECT count(*) FROM ualp_catalog_options),
+               (SELECT count(*) FROM ualp_catalog_scales),
+               (SELECT count(*) FROM ualp_catalog_links),
+               (SELECT count(*) FROM ualp_catalog_scoring_rules)"""
+        ).fetchone())
+        assert new_catalog == old_catalog
+        new_work_values = tuple(conn.execute(
+            """SELECT count(*),
+               (SELECT count(*) FROM ualp_responses
+                 WHERE run_id IN (
+                   SELECT run_id FROM ualp_assessment_runs
+                   WHERE form_id=%s)),
+               (SELECT count(*) FROM ualp_scale_scores
+                 WHERE run_id IN (
+                   SELECT run_id FROM ualp_assessment_runs
+                   WHERE form_id=%s))
+               FROM ualp_assessment_runs WHERE form_id=%s""",
+            (FORM, FORM, FORM),
+        ).fetchone())
+        assert new_work_values == old_work_values
+    assert counts(isolated_postgres) == old_runs
