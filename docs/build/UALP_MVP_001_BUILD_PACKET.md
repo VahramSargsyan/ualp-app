@@ -140,3 +140,23 @@ NOT_RUN: independent bilingual review, scientific validation, actual private sou
 RISK: L3 content/version lock for any later import. No new API cost, account, executor, or PROD permission. Do not present draft RU scores as validated diagnostics or use for hiring.
 ROLLBACK: revert only this branch's preflight/test/packet commits to base commit; no live app or database changes to undo.
 AUTHORIZATION_END: preflight code, automated tests, read-only source and Neon verification, PR receipt, STOP. Subsequent actual content import / private run is a new bounded migration + release block with explicit gate checks and rollback.
+
+
+### MVP-004 owner-private source lock and guarded Neon rehearsal checkpoint
+
+DATE: 2026-11-16
+MODE: IMPLEMENT_FEATURE (guarded private catalog preparation/rehearsal). Owner-only Russian TEST; no public/PROD release or additional executor.
+SOURCE_HEAD: 5df9be8f1b0c24d6b6c542b0474279692740ee31
+PRIVATE_MANIFEST: Frozen owner-private draft v0.2 in a separate, owner-only Google Drive file, no item texts/response labels committed to GitHub. Canonical SHA256 over UTF-8 JSON with alphabetically sorted keys: 9d54adb24827f3902ba91858e711e92d343488b1863d22a695847dbdd47197be.
+SOURCE_MEMBERSHIP: Original canonical FORM-000001 / 60 source-indexed stable ITEM IDs, 10 per R/I/A/S/E/C, 6 SUM scales/rules, five 0..4 options; 9 proposed RU editorial wording changes. Mark all adapted questions/answer labels DRAFT_NOT_REVIEWED, owner-only experimental. No independent bilingual/psychometric approval.
+PREWRITE_SAFETY: Read-only Neon ualp_test before migration: 1 form, 21 items, 5 options, 27 scales, 42 links, 27 rules, 1 run, 21 responses, 27 scores. Actual RIASEC IDs and Work Values IDs are distinct. Neon Free pre-RIASEC copy-on-write backup branch is READY, with parent LSN recorded privately; backup has no compute. Separate isolated disposable rehearsal branch has exactly the same baseline data. No PROD or VBOS project involved.
+REHEARSAL: TWO attempted fully transactional additive catalog installs on the separate rehearsal Neon branch, both ROLLED BACK, with verified no form/items added, old data unchanged and parent branch not mutated.
+BLOCKER 1: SQL syntax error caused by use of "FROM source, CROSS JOIN LATERAL"; repaired to "FROM source CROSS JOIN LATERAL".
+BLOCKER 2: overly broad scale-ID collision probe LIKE 'SCALE-00000_' matches three legitimate Work Values IDs ending 000007, 000008, 000009. Precise remedy for a later controlled attempt is strict equality against intended six source IDs SCALE-000001 through SCALE-000006, plus exact item/form ID collision checks. Never relax checks broadly or delete old IDs.
+REPAIR_CYCLES: Two evidence-producing cycles exhausted for this bounded block; STOP before any third write attempt. Fix should be tested against the exact existing baseline on the separate rehearsal branch in a new authorized block, then verify all rows and original owner data before considering the main TEST import.
+NONDESTRUCTIVE_READBACK: Rehearsal and main both remain: forms 1/items 21/options 5/scales 27/links 42/rules 27/runs 1/responses 21/scores 27. Pre-RIASEC backup branch READY.
+MIGRATION_NOT_RUN_ON_MAIN: No RIASEC content imported into working main Neon, no form route activated, no new TEST URL or human RIASEC completion.
+TESTS: The existing synthetic-only source-lock/HTTP/real-PostgreSQL CI suite previously PASS at source HEAD; actual private-manifest CLI against native JSON and real source migration PASS are NOT_RUN. Do not equate failed transactional rehearsals with accepted migration.
+REMAINING_DEPENDENCIES: Narrow SQL collision check, new isolated rehearsal PASS + row-by-row readback, verification of private manifest hash, safe additive main TEST import with backup and rollback, runtime adaptation with owner-key auth and visible attribution/experimental warning, exact Vercel Preview deploy, owner-phone acceptance.
+ROLLBACK: No main database rollback required because no write occurred. Keep the original Neon's backup branch available until the next gated import is accepted. No public manifest content should be added to repository.
+AUTHORIZATION_END: Report partial checkpoint and stop the blocked migration block under two-cycle repair limit.
