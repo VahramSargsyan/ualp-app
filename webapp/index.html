@@ -43,7 +43,7 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <p id="signedIn" class="muted" hidden>Вход выполнен. Можно открывать профиль и проходить тесты.</p>
 <p><label><input type="checkbox" id="consent"> Я понимаю экспериментальный статус теста и согласен сохранить мои ответы в TEST.</label></p>
 <p><label><input type="checkbox" id="draftOptIn"> Автоматически сохранять незавершённые ответы на этом устройстве (до 7 дней)</label></p>
-<p class="muted">Черновик содержит выбранные ответы и хранится без шифрования в этом браузере, а не в PostgreSQL. Используй только личное устройство. «Выйти» удаляет локальные черновики.</p>
+<p class="muted">Черновик содержит выбранные ответы без шифрования только в этом браузере, не в PostgreSQL. Восстановление доступно до 7 дней после последнего ответа; просроченный черновик удаляется при следующем входе. Не включай на общем устройстве. «Выйти» удаляет локальные черновики.</p>
 <div id="draftResumes" hidden aria-live="polite"></div>
 <p class="muted">Посмотреть предыдущие прохождения можно без нового теста: достаточно войти в приложение.</p>
 <div class="actions"><button id="profileOpen" disabled>Мой профиль</button><button id="historyOpen" disabled>История Work Values</button></div>
@@ -80,6 +80,7 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <div class="actions"><button id="resultHome">На главную</button><button id="resultHistory" hidden>К истории</button><button id="resultProfile" hidden>К профилю</button></div>
 </section>
 <p id="status" role="status" aria-live="polite"></p>
+<p class="muted" id="buildVersion">UALP 0.4.2-draft-resume-test · TEST · мобильный/настольный веб</p>
 <script>
 (function(){
 'use strict';
