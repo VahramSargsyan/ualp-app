@@ -61,3 +61,62 @@ def score_short_form(
     if any(not 0 <= value <= 40 for value in scores.values()):
         raise RIASECContractError("Scoring range violated")
     return scores
+
+
+
+def score_catalog_short_form(
+    answers: Mapping[str, str],
+    option_scores: Mapping[str, object],
+    links: Sequence[Mapping[str, object]],
+    rules: Sequence[Mapping[str, object]],
+    scales: Sequence[Mapping[str, object]],
+) -> list[dict[str, object]]:
+    """Validate *synthetic CI* PostgreSQL catalog and return six stored-scale rows.
+
+    This adapter is NOT a licence or validation gate: the HTTP boundary separately
+    denies this form outside localhost-only disposable CI, even if catalog rows exist.
+    """
+    if len(scales) != 6:
+        raise RIASECContractError("Expected exactly six parent scales")
+    by_id = {}
+    by_area = {}
+    for s in scales:
+        area, sid = s["scale_key"], s["scale_id"]
+        if (area not in RIASEC_AREAS or area in by_area
+                or sid in by_id or s["is_parent"] is not True):
+            raise RIASECContractError("Invalid scale identity or parent status")
+        by_id[sid] = area
+        by_area[area] = sid
+    if set(by_area) != set(RIASEC_AREAS):
+        raise RIASECContractError("Missing RIASEC parent scale")
+
+    if len(rules) != 6:
+        raise RIASECContractError("Expected six SUM rules")
+    if {r["scale_id"] for r in rules} != set(by_id):
+        raise RIASECContractError("Scale/rule mismatch")
+    for rule in rules:
+        if (rule["method"] != "SUM" or rule["min_items"] != 10
+                or rule["algorithm_version"] != ALGORITHM_VERSION
+                or rule["status"] != "DRAFT"):
+            raise RIASECContractError("Unapproved scoring rule")
+
+    pairs = []
+    for l in links:
+        if (l["scale_id"] not in by_id
+                or l["direction"] != "POSITIVE"
+                or l["weight"] != 1):
+            raise RIASECContractError("Unapproved link weight/direction")
+        pairs.append((l["item_id"], by_id[l["scale_id"]]))
+
+    clean_options = {}
+    for key, value in option_scores.items():
+        # PostgreSQL numeric is Decimal: require exact integer, never round.
+        if value is None or value != int(value):
+            raise RIASECContractError("Nonintegral response score")
+        clean_options[key] = int(value)
+    scores = score_short_form(answers, pairs, clean_options)
+    return [
+        {"scaleId": by_area[area], "mean": scores[area],
+         "answered": 10, "algorithmVersion": ALGORITHM_VERSION}
+        for area in RIASEC_AREAS
+    ]
