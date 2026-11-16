@@ -1,0 +1,50 @@
+name: UALP ephemeral PostgreSQL integration
+on:
+  push:
+    branches: ['feature/ualp-mvp-001-vercel-test']
+  pull_request:
+    paths:
+      - 'webapp/**'
+      - 'tests/test_real_postgres_integration.py'
+      - 'migrations/001_initial_postgres_test.sql'
+      - 'requirements*.txt'
+      - '.github/workflows/ualp-real-pg-ci.yml'
+jobs:
+  real-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: ualp_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ephemeral_ci_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ualp_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      UALP_CI_MODE: EPHEMERAL_POSTGRES
+      UALP_CI_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/ualp_ci
+      PGPASSWORD: ephemeral_ci_only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements-dev.txt
+      - name: Real PostgreSQL / FastAPI integration against synthetic catalog
+        run: python -m pytest -q tests/test_real_postgres_integration.py
+      - name: Reaffirm CI localhost-only
+        run: |
+          test "$UALP_CI_MODE" = "EPHEMERAL_POSTGRES"
+          case "$UALP_CI_DATABASE_URL" in
+            postgresql://postgres@127.0.0.1:5432/ualp_ci) echo "Local ephemeral DB only";;
+            *) echo "Blocked: unexpected database target"; exit 1;;
+          esac
