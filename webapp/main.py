@@ -130,6 +130,9 @@ def _verify_owner_riasec_catalog(conn, form_row, items) -> None:
             or len(scales) != 6 or len(option_rows) != 5
             or any(x["direction"] != "POSITIVE" or x["weight"] != 1
                    for x in links)
+            or any(x["is_parent"] is not True for x in scales)
+            or {x["scale_id"] for x in rules} != {x["scale_id"] for x in scales}
+            or any(x["score_value"] != int(x["score_value"]) for x in option_rows)
             or any(x["method"] != "SUM" or x["min_items"] != 10
                    or x["algorithm_version"] != "RIASEC-SUM-v1"
                    or x["status"] != "DRAFT" for x in rules)):
