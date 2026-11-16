@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- index.html | UALP 0.4.1-owner-session-test -->
+<!-- index.html | UALP 0.4.2-draft-resume-test -->
 <html lang="ru">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>UALP — PostgreSQL TEST</title>
@@ -42,6 +42,9 @@ progress{width:100%;height:12px;accent-color:#245fac}
 </div>
 <p id="signedIn" class="muted" hidden>Вход выполнен. Можно открывать профиль и проходить тесты.</p>
 <p><label><input type="checkbox" id="consent"> Я понимаю экспериментальный статус теста и согласен сохранить мои ответы в TEST.</label></p>
+<p><label><input type="checkbox" id="draftOptIn"> Автоматически сохранять незавершённые ответы на этом устройстве (до 7 дней)</label></p>
+<p class="muted">Черновик содержит выбранные ответы и хранится без шифрования в этом браузере, а не в PostgreSQL. Используй только личное устройство. «Выйти» удаляет локальные черновики.</p>
+<div id="draftResumes" hidden aria-live="polite"></div>
 <p class="muted">Посмотреть предыдущие прохождения можно без нового теста: достаточно войти в приложение.</p>
 <div class="actions"><button id="profileOpen" disabled>Мой профиль</button><button id="historyOpen" disabled>История Work Values</button></div>
 <div class="actions"><button class="primary" id="start" disabled>Начать Work Values · 21</button><button class="primary" id="startRiasec" disabled>Начать RIASEC · 60</button></div>
@@ -66,7 +69,8 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <p class="muted" id="position"></p><progress id="progress" value="0" max="21"></progress>
 <h2 id="prompt"></h2><div id="options"></div>
 <p id="questionSource" class="muted" hidden></p>
-<div class="actions"><button id="previous">Назад</button><button class="primary" id="next">Далее</button></div>
+<p id="draftStatus" class="muted" role="status"></p>
+<div class="actions"><button id="questionHome">На главную</button><button id="previous">Назад</button><button class="primary" id="next">Далее</button></div>
 </section>
 <section class="card" id="results" hidden>
 <h2>Результат сохранён в PostgreSQL</h2>
@@ -80,7 +84,7 @@ progress{width:100%;height:12px;accent-color:#245fac}
 (function(){
 'use strict';
 const el=(id)=>document.getElementById(id);
-const state={authenticated:false,form:null,answers:{},index:0,busy:false,requestId:'',historyCursor:null,fromHistory:false,fromProfile:false,historyFromProfile:false};
+const state={authenticated:false,form:null,answers:{},index:0,busy:false,requestId:'',draftEnabled:false,historyCursor:null,fromHistory:false,fromProfile:false,historyFromProfile:false};
 const setStatus=(s,error=false)=>{const p=el('status');p.textContent=s;p.className=error?'error':'muted';};
 const show=(id)=>{for(const x of ['welcome','questions','results','history','profile'])el(x).hidden=x!==id;};
 const newId=()=>crypto.randomUUID();
@@ -89,7 +93,7 @@ function locked(v){
   el('start').disabled=v||!el('consent').checked||!state.authenticated;
   el('startRiasec').disabled=v||!el('consent').checked||!state.authenticated;
   el('historyOpen').disabled=v||!state.authenticated;el('profileOpen').disabled=v||!state.authenticated;
-  for(const id of ['historyMore','next','previous','logout','login'])el(id).disabled=v;
+  for(const id of ['historyMore','next','previous','questionHome','logout','login'])el(id).disabled=v;
   el('loginFields').hidden=state.authenticated;el('signedIn').hidden=!state.authenticated;
   el('logout').hidden=!state.authenticated;
 }
@@ -108,6 +112,117 @@ async function api(url,method,body,accessKey){
   }
   return data;
 }
+// Consent-based, unencrypted per-browser drafts; never store access keys or item prompts.
+const DRAFT_PREFIX='ualp-owner-draft-v1:';
+const DRAFT_TTL=7*24*60*60*1000;
+const DRAFT_FORMS=['UALP_WV21_RU_LIKERT','ONET_SHORT_60_DIGITAL'];
+function draftKey(formKey){return DRAFT_PREFIX+formKey;}
+function eraseDraft(formKey){
+  if(!DRAFT_FORMS.includes(formKey))return;
+  try{localStorage.removeItem(draftKey(formKey));}catch(_){}
+}
+function eraseAllDrafts(){DRAFT_FORMS.forEach(eraseDraft);}
+function readDraft(formKey){
+  if(!state.authenticated||!DRAFT_FORMS.includes(formKey))return null;
+  let raw;
+  try{
+    raw=localStorage.getItem(draftKey(formKey));
+    if(!raw)return null;
+    if(raw.length>16000)throw Error('oversized');
+    const d=JSON.parse(raw),now=Date.now();
+    const count=formKey===DRAFT_FORMS[0]?21:60;
+    if(!d||d.schema!==1||d.formKey!==formKey||
+       typeof d.formVersion!=='string'||!d.formVersion||d.formVersion.length>120||
+       !Number.isInteger(d.savedAt)||!Number.isInteger(d.expiresAt)||
+       d.savedAt>now+60000||d.expiresAt<=now||d.expiresAt>now+DRAFT_TTL+60000||
+       !Array.isArray(d.itemIds)||d.itemIds.length!==count||
+       new Set(d.itemIds).size!==count||
+       d.itemIds.some(id=>typeof id!=='string'||!id||id.length>80)||
+       !Number.isInteger(d.index)||d.index<0||d.index>=count||
+       typeof d.requestId!=='string'||
+       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(d.requestId)||
+       !d.answers||Object.getPrototypeOf(d.answers)!==Object.prototype)throw Error('invalid');
+    const ids=new Set(d.itemIds),responses=Object.entries(d.answers);
+    if(!responses.length||responses.length>count||
+       responses.some(([id,option])=>!ids.has(id)||typeof option!=='string'||!option||option.length>80))
+       throw Error('responses');
+    return d;
+  }catch(_){if(raw!==undefined)eraseDraft(formKey);return null;}
+}
+function saveDraft(){
+  if(!state.draftEnabled||!state.authenticated||!state.form)return false;
+  if(!Object.keys(state.answers).length)return true;
+  const formKey=state.form.formKey;
+  if(!DRAFT_FORMS.includes(formKey))return false;
+  const now=Date.now();
+  const draft={schema:1,formKey,formVersion:state.form.formVersion,
+    itemIds:state.form.items.map(item=>item.itemId),
+    answers:state.answers,index:state.index,requestId:state.requestId,
+    savedAt:now,expiresAt:now+DRAFT_TTL};
+  try{
+    localStorage.setItem(draftKey(formKey),JSON.stringify(draft));
+    el('draftStatus').textContent='Черновик сохранён на этом устройстве на срок до 7 дней.';
+    return true;
+  }catch(_){
+    el('draftStatus').textContent='Черновик не сохранён: хранилище браузера недоступно.';
+    setStatus('Браузер не разрешил сохранить черновик. Не закрывай страницу до завершения.',true);
+    return false;
+  }
+}
+function draftMatchesForm(d,form){
+  const ids=form.items.map(item=>item.itemId);
+  const options=new Set(form.options.map(opt=>opt.optionKey));
+  return form.formKey===d.formKey&&form.formVersion===d.formVersion&&
+    ids.length===d.itemIds.length&&ids.every((id,i)=>id===d.itemIds[i])&&
+    Object.values(d.answers).every(opt=>options.has(opt));
+}
+function renderDraftResumes(){
+  const host=el('draftResumes');host.replaceChildren();
+  if(!state.authenticated){host.hidden=true;return;}
+  for(const formKey of DRAFT_FORMS){
+    const draft=readDraft(formKey);
+    if(!draft)continue;
+    const box=document.createElement('div');
+    box.className='profile-method';
+    const info=document.createElement('p');
+    const name=formKey===DRAFT_FORMS[0]?'Work Values':'RIASEC';
+    info.textContent='Черновик '+name+': ответов '+Object.keys(draft.answers).length+
+      ' из '+draft.itemIds.length+'. Хранится только в этом браузере.';
+    const resume=document.createElement('button');resume.type='button';
+    resume.textContent='Продолжить '+name;
+    resume.onclick=()=>resumeDraft(formKey);
+    const discard=document.createElement('button');discard.type='button';
+    discard.textContent='Удалить черновик';
+    discard.onclick=()=>{
+      if(!confirm('Удалить незавершённые ответы '+name+' с этого устройства?'))return;
+      eraseDraft(formKey);renderDraftResumes();setStatus('Черновик удалён.');
+    };
+    const actions=document.createElement('div');actions.className='actions';
+    actions.append(resume,discard);box.append(info,actions);host.append(box);
+  }
+  host.hidden=host.childElementCount===0;
+}
+async function resumeDraft(formKey){
+  if(state.busy||!state.authenticated)return;
+  if(!el('consent').checked){
+    setStatus('Для продолжения подтверди согласие на сохранение ответов в TEST.',true);return;
+  }
+  const draft=readDraft(formKey);
+  if(!draft){renderDraftResumes();setStatus('Черновик не найден или срок хранения истёк.',true);return;}
+  locked(true);setStatus('Проверяю версию вопросов перед восстановлением...');
+  try{
+    const form=await api('/api/forms/'+encodeURIComponent(formKey),'GET');
+    if(!draftMatchesForm(draft,form)){
+      eraseDraft(formKey);renderDraftResumes();
+      throw Error('Версия вопросов изменилась. Старый черновик удалён; начни тест заново.');
+    }
+    state.form=form;state.answers={...draft.answers};state.index=draft.index;
+    state.requestId=draft.requestId;state.draftEnabled=true;
+    el('draftOptIn').checked=true;render();
+    setStatus('Черновик восстановлен: '+Object.keys(state.answers).length+' ответов.');
+  }catch(e){setStatus(e.message,true);}finally{locked(false);}
+}
+
 function render(){
   const item=state.form.items[state.index];show('questions');
   el('position').textContent='Вопрос '+(state.index+1)+' из '+state.form.items.length;
@@ -121,19 +236,20 @@ function render(){
     const label=document.createElement('label');label.className='choice';
     const radio=document.createElement('input');radio.type='radio';radio.name='answer';radio.value=opt.optionKey;
     radio.checked=state.answers[item.itemId]===opt.optionKey;
-    radio.onchange=()=>{state.answers[item.itemId]=opt.optionKey;setStatus('');};
+    radio.onchange=()=>{state.answers[item.itemId]=opt.optionKey;setStatus('');if(state.draftEnabled)saveDraft();};
     const text=document.createElement('span');text.textContent=opt.label;
     label.append(radio,text);container.appendChild(label);
   });
   el('previous').disabled=state.index===0||state.busy;
+  el('draftStatus').textContent=state.draftEnabled?'Автосохранение ответов включено.':'Черновик только в памяти страницы.';
   el('next').textContent=state.index===state.form.items.length-1?'Сохранить ответы':'Далее';
 }
 function home(){
   if(state.busy)return;
-  state.form=null;state.answers={};state.index=0;state.requestId='';
+  state.form=null;state.answers={};state.index=0;state.requestId='';state.draftEnabled=false;
   state.historyCursor=null;state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
   el('profileMethods').replaceChildren();el('profileSummary').replaceChildren();el('historyList').replaceChildren();el('scores').replaceChildren();el('reference').textContent='';el('access').value='';
-  el('consent').checked=false;show('welcome');locked(false);setStatus('');
+  el('consent').checked=false;show('welcome');locked(false);renderDraftResumes();setStatus('');
 }
 function displayResult(out){
   show('results');el('scores').replaceChildren();
@@ -265,17 +381,17 @@ el('login').onclick=async()=>{
     await api('/api/session','POST',{remember:el('remember').checked},el('access').value);
     el('access').value='';
     // Verify cookie acceptance instead of showing a successful but unusable login.
-    await api('/api/session','GET');state.authenticated=true;setStatus('Вход выполнен.');
+    await api('/api/session','GET');state.authenticated=true;renderDraftResumes();setStatus('Вход выполнен.');
   }catch(e){state.authenticated=false;setStatus(e.message,true);}finally{locked(false);}
 };
 el('access').onkeydown=(e)=>{if(e.key==='Enter')el('login').click();};
 el('logout').onclick=async()=>{
   if(state.busy)return;
   if(state.form&&Object.keys(state.answers).length&& !el('questions').hidden
-      &&!confirm('Выйти? Незавершённые ответы будут потеряны.'))return;
+      &&!confirm('Выйти? Все локальные черновики и незавершённые ответы будут удалены.'))return;
   locked(true);setStatus('Выход...');
   try{
-    await api('/api/session','DELETE');state.authenticated=false;
+    await api('/api/session','DELETE');eraseAllDrafts();state.authenticated=false;
     locked(false);home();el('remember').checked=false;setStatus('Вход на этом устройстве удалён.');
   }catch(e){setStatus('Не удалось выйти. '+e.message,true);}finally{locked(false);}
 };
@@ -317,35 +433,48 @@ el('resultHome').onclick=home;
 el('resultHistory').onclick=()=>{if(!state.busy&&state.fromHistory){show('history');setStatus('');}};
 async function startAssessment(formKey){
   if(state.busy||!el('consent').checked||!state.authenticated)return;
+  const old=readDraft(formKey);
+  if(old&&!confirm('Есть незавершённый черновик этой методики. Удалить его и начать заново?'))return;
   locked(true);setStatus('Загружаю вопросы...');
   try{
     state.form=await api('/api/forms/'+encodeURIComponent(formKey),'GET');
     if(state.form.formKey!==formKey||!Array.isArray(state.form.items)||!state.form.items.length)
       throw new Error('Сервер вернул неожиданную форму');
+    if(old)eraseDraft(formKey);
     state.answers={};state.index=0;state.fromHistory=false;state.fromProfile=false;
-    state.requestId=newId();el('access').value='';render();setStatus('');
+    state.requestId=newId();state.draftEnabled=el('draftOptIn').checked;
+    el('access').value='';render();setStatus('');
   }catch(e){setStatus(e.message,true);}finally{locked(false);}
 }
 el('start').onclick=()=>startAssessment('UALP_WV21_RU_LIKERT');
 el('startRiasec').onclick=()=>startAssessment('ONET_SHORT_60_DIGITAL');
-el('previous').onclick=()=>{if(!state.busy&&state.index>0){state.index--;render();}};
+el('previous').onclick=()=>{if(!state.busy&&state.index>0){state.index--;render();if(state.draftEnabled)saveDraft();}};
+el('questionHome').onclick=()=>{
+  if(state.busy)return;
+  if(state.draftEnabled&&Object.keys(state.answers).length&&!saveDraft()&&
+     !confirm('Не удалось сохранить черновик. Вернуться на главную и потерять ответы?'))return;
+  if(!state.draftEnabled&&Object.keys(state.answers).length&&
+     !confirm('Автосохранение выключено. Вернуться на главную и потерять ответы?'))return;
+  home();
+};
 el('next').onclick=async()=>{
   if(state.busy)return;
   const current=state.form.items[state.index];
   if(!state.answers[current.itemId]){setStatus('Выберите один вариант ответа.',true);return;}
-  if(state.index<state.form.items.length-1){state.index++;render();setStatus('');return;}
+  if(state.index<state.form.items.length-1){state.index++;render();setStatus('');if(state.draftEnabled)saveDraft();return;}
   const answers=state.form.items.map(i=>({itemId:i.itemId,optionKey:state.answers[i.itemId]}));
   if(answers.some(x=>!x.optionKey)){setStatus('Ответьте на каждый вопрос.',true);return;}
   locked(true);setStatus('Записываю ответы и рассчитываю результат...');
   try{
     const out=await api('/api/runs','POST',{requestId:state.requestId,formKey:state.form.formKey,consent:true,answers});
+    eraseDraft(state.form.formKey);
     state.fromHistory=false;state.fromProfile=false;displayResult(out);
     setStatus('Сохранено. Профиль и другие тесты доступны на главной.');
   }catch(e){setStatus(e.message,true);}finally{locked(false);}
 };
 async function restoreSession(){
   locked(true);
-  try{await api('/api/session','GET');state.authenticated=true;setStatus('Вход восстановлен.');}
+  try{await api('/api/session','GET');state.authenticated=true;renderDraftResumes();setStatus('Вход восстановлен.');}
   catch(e){state.authenticated=false;setStatus(e.message.includes('Вход не выполнен')?'':e.message,true);}
   finally{locked(false);}
 }
