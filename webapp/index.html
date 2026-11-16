@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- index.html | UALP 0.4.1-owner-session-test -->
 <html lang="ru">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>UALP — PostgreSQL TEST</title>
@@ -27,16 +28,24 @@ progress{width:100%;height:12px;accent-color:#245fac}
 [hidden]{display:none!important}
 </style></head>
 <body><main>
-<header><h1>UALP</h1><span class="tag">PostgreSQL · Private TEST</span></header>
+<header><h1>UALP</h1><span class="tag">PostgreSQL · Private TEST</span><button id="logout" hidden>Выйти</button></header>
 <p class="notice">Исследовательский черновик, не валидированная диагностика. Результаты не предназначены для найма, медицинских решений или оценки интеллекта. Данные сохраняются в отдельной TEST-базе PostgreSQL.</p>
 <section class="card" id="welcome">
-<h2>Профессиональные ценности — пилот</h2>
-<p class="muted">Вход предназначен только владельцу проекта. Ключ хранится в памяти текущей вкладки и не сохраняется в браузере.</p>
+<h2>Мои тесты — личный исследовательский режим</h2>
+<p class="muted">Выбери Work Values (21 вопрос) или RIASEC (60 вопросов). Оба сохраняют результаты отдельно. Русский RIASEC — экспериментальный перевод, не валидирован.</p>
+<div id="loginFields">
+<p class="muted">Введи приватный ключ один раз. На личном устройстве можно запомнить вход на 30 дней.</p>
 <label for="access">Ключ доступа TEST</label>
 <input id="access" type="password" autocomplete="off" placeholder="Введите приватный ключ">
+<p><label><input type="checkbox" id="remember"> Запомнить это устройство на 30 дней</label></p>
+<button class="primary" id="login">Войти</button>
+</div>
+<p id="signedIn" class="muted" hidden>Вход выполнен. Можно открывать профиль и проходить тесты.</p>
 <p><label><input type="checkbox" id="consent"> Я понимаю экспериментальный статус теста и согласен сохранить мои ответы в TEST.</label></p>
-<p class="muted">Посмотреть предыдущие прохождения можно без нового теста: достаточно ключа доступа.</p>
-<div class="actions"><button id="profileOpen" disabled>Мой профиль</button><button id="historyOpen" disabled>История результатов</button><button class="primary" id="start" disabled>Начать тест</button></div>
+<p class="muted">Посмотреть предыдущие прохождения можно без нового теста: достаточно войти в приложение.</p>
+<div class="actions"><button id="profileOpen" disabled>Мой профиль</button><button id="historyOpen" disabled>История Work Values</button></div>
+<div class="actions"><button class="primary" id="start" disabled>Начать Work Values · 21</button><button class="primary" id="startRiasec" disabled>Начать RIASEC · 60</button></div>
+<p class="muted">RIASEC: O*NET Interest Profiler (USDOL/ETA), русский экспериментальный перевод, только для личного исследования. Ни O*NET, ни USDOL не одобряют UALP.</p>
 </section>
 <section class="card" id="profile" hidden>
 <h2>Мой профиль — личный TEST</h2>
@@ -56,11 +65,13 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <section class="card" id="questions" hidden>
 <p class="muted" id="position"></p><progress id="progress" value="0" max="21"></progress>
 <h2 id="prompt"></h2><div id="options"></div>
+<p id="questionSource" class="muted" hidden></p>
 <div class="actions"><button id="previous">Назад</button><button class="primary" id="next">Далее</button></div>
 </section>
 <section class="card" id="results" hidden>
 <h2>Результат сохранён в PostgreSQL</h2>
-<p class="muted">Ниже указаны только средние значения приоритетов по шести группам (0–4), без норм и рекомендаций.</p>
+<p class="muted" id="resultExplain">Ниже указаны только средние значения приоритетов по шести группам (0–4), без норм и рекомендаций.</p>
+<p class="muted" id="resultSource" hidden>RIASEC: O*NET Interest Profiler by USDOL/ETA, изменённый русский перевод. <a href="https://www.onetcenter.org/license_toolsdev.html" rel="noopener noreferrer" target="_blank">Лицензия O*NET Tools Developer License</a>. Методика не валидирована для UALP; одобрения USDOL/ETA нет.</p>
 <ul id="scores" class="scores"></ul><p class="muted" id="reference"></p>
 <div class="actions"><button id="resultHome">На главную</button><button id="resultHistory" hidden>К истории</button><button id="resultProfile" hidden>К профилю</button></div>
 </section>
@@ -69,16 +80,32 @@ progress{width:100%;height:12px;accent-color:#245fac}
 (function(){
 'use strict';
 const el=(id)=>document.getElementById(id);
-const state={key:'',form:null,answers:{},index:0,busy:false,requestId:'',historyCursor:null,fromHistory:false,fromProfile:false,historyFromProfile:false};
+const state={authenticated:false,form:null,answers:{},index:0,busy:false,requestId:'',historyCursor:null,fromHistory:false,fromProfile:false,historyFromProfile:false};
 const setStatus=(s,error=false)=>{const p=el('status');p.textContent=s;p.className=error?'error':'muted';};
 const show=(id)=>{for(const x of ['welcome','questions','results','history','profile'])el(x).hidden=x!==id;};
 const newId=()=>crypto.randomUUID();
-function locked(v){state.busy=v;el('start').disabled=v||!el('consent').checked||!el('access').value;el('historyOpen').disabled=v||!el('access').value;el('profileOpen').disabled=v||!el('access').value;el('historyMore').disabled=v;el('next').disabled=v;el('previous').disabled=v;}
-async function api(url,method,body){
-  const res=await fetch(url,{method,headers:{'X-UALP-Access-Key':state.key,'Content-Type':'application/json'},
+function locked(v){
+  state.busy=v;
+  el('start').disabled=v||!el('consent').checked||!state.authenticated;
+  el('startRiasec').disabled=v||!el('consent').checked||!state.authenticated;
+  el('historyOpen').disabled=v||!state.authenticated;el('profileOpen').disabled=v||!state.authenticated;
+  for(const id of ['historyMore','next','previous','logout','login'])el(id).disabled=v;
+  el('loginFields').hidden=state.authenticated;el('signedIn').hidden=!state.authenticated;
+  el('logout').hidden=!state.authenticated;
+}
+async function api(url,method,body,accessKey){
+  const headers={'Content-Type':'application/json','X-UALP-Request':'1'};
+  if(accessKey)headers['X-UALP-Access-Key']=accessKey;
+  const res=await fetch(url,{method,headers,credentials:'same-origin',
     body:body?JSON.stringify(body):undefined,cache:'no-store'});
   const data=await res.json().catch(()=>({detail:'Не удалось прочитать ответ сервера'}));
-  if(!res.ok)throw new Error((typeof data.detail==='string'?data.detail:'Ошибка')+' ('+res.status+')');
+  if(!res.ok){
+    if(res.status===401){
+      state.authenticated=false;show('welcome');locked(state.busy);
+      throw new Error('Вход не выполнен или истёк. Введи ключ доступа ещё раз.');
+    }
+    throw new Error((typeof data.detail==='string'?data.detail:'Ошибка')+' ('+res.status+')');
+  }
   return data;
 }
 function render(){
@@ -86,6 +113,9 @@ function render(){
   el('position').textContent='Вопрос '+(state.index+1)+' из '+state.form.items.length;
   el('progress').value=state.index+1;el('progress').max=state.form.items.length;
   el('prompt').textContent=item.prompt;
+  const source=el('questionSource');
+  source.hidden=state.form.formKey!=='ONET_SHORT_60_DIGITAL';
+  source.textContent=source.hidden?'':(state.form.sourceAttribution||'RIASEC: экспериментальный русский перевод.');
   const container=el('options');container.replaceChildren();
   state.form.options.forEach(opt=>{
     const label=document.createElement('label');label.className='choice';
@@ -100,16 +130,22 @@ function render(){
 }
 function home(){
   if(state.busy)return;
-  state.key='';state.form=null;state.answers={};state.index=0;state.requestId='';
+  state.form=null;state.answers={};state.index=0;state.requestId='';
   state.historyCursor=null;state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
   el('profileMethods').replaceChildren();el('profileSummary').replaceChildren();el('historyList').replaceChildren();el('scores').replaceChildren();el('reference').textContent='';el('access').value='';
   el('consent').checked=false;show('welcome');locked(false);setStatus('');
 }
 function displayResult(out){
   show('results');el('scores').replaceChildren();
+  const isRiasec=out.scoringAlgorithmVersion==='RIASEC-SUM-v1';
+  el('resultExplain').textContent=isRiasec
+    ?'Шесть независимых сумм интересов от 0 до 40. Экспериментальный русский перевод, без норм, диагнозов или рекомендаций.'
+    :'Ниже указаны только средние значения приоритетов по шести группам (0–4), без норм и рекомендаций.';
+  el('resultSource').hidden=!isRiasec;
   out.scores.forEach(s=>{
     const li=document.createElement('li'),name=document.createElement('span'),value=document.createElement('span');
-    name.textContent=s.label||s.key;value.className='score';value.textContent=Number(s.mean).toFixed(2);
+    name.textContent=s.label||s.key;value.className='score';
+    value.textContent=isRiasec?(Math.round(Number(s.mean))+' / 40'):Number(s.mean).toFixed(2);
     li.append(name,value);el('scores').append(li);
   });
   el('reference').textContent='Алгоритм: '+out.scoringAlgorithmVersion+' · ID: '+out.runId;
@@ -183,16 +219,18 @@ function showProfile(data){
       const line=document.createElement('div');line.className='profile-row';
       const label=document.createElement('span');label.textContent=score.label||score.key;
       const bar=document.createElement('div');
-      if(m.formKey==='UALP_WV21_RU_LIKERT'){
+      if(m.formKey==='UALP_WV21_RU_LIKERT'||m.formKey==='ONET_SHORT_60_DIGITAL'){
         const meter=document.createElement('meter');
-        meter.min=0;meter.max=4;meter.value=Math.max(0,Math.min(4,Number(score.mean)));
-        meter.setAttribute('aria-label',label.textContent+' по шкале от 0 до 4');
+        const max=m.formKey==='ONET_SHORT_60_DIGITAL'?40:4;
+        meter.min=0;meter.max=max;meter.value=Math.max(0,Math.min(max,Number(score.mean)));
+        meter.setAttribute('aria-label',label.textContent+' по шкале от 0 до '+max);
         bar.append(meter);
       }
-      const val=document.createElement('strong');val.className='score';val.textContent=Number(score.mean).toFixed(2);
+      const val=document.createElement('strong');val.className='score';
+      val.textContent=m.formKey==='ONET_SHORT_60_DIGITAL'?(Math.round(Number(score.mean))+'/40'):Number(score.mean).toFixed(2);
       line.append(label,bar,val);box.append(line);
     });
-    if(m.formKey==='UALP_WV21_RU_LIKERT'){
+    if(m.formKey==='UALP_WV21_RU_LIKERT'||m.formKey==='ONET_SHORT_60_DIGITAL'){
       const open=document.createElement('button');
       open.textContent='Открыть сохранённый результат';
       open.type='button';
@@ -210,22 +248,44 @@ function showProfile(data){
   });
   const seen=new Set(data.methods.map(m=>m.formKey));
   const pending=[];
-  if(!seen.has('ONET_SHORT_60_DIGITAL'))pending.push('RIASEC');
+  if(!seen.has('ONET_SHORT_60_DIGITAL'))pending.push('RIASEC (ещё не пройден)');
   if(!seen.has('ICAR16_DIGITAL'))pending.push('ICAR-16');
   el('profilePending').textContent=pending.length
-    ?'Ещё не подключены или не пройдены: '+pending.join(', ')+'. Их результаты не рассчитывались.'
+    ?'Другие исследования: '+pending.join(', ')+'. Отсутствующие результаты не рассчитывались.'
     :'Другие методики появятся только после отдельного подтверждения и прохождения.';
   if(data.hasMoreMethods)el('profilePending').textContent+=' Показаны первые 12 методик.';
   show('profile');
 }
-el('access').oninput=()=>locked(state.busy);el('consent').onchange=()=>locked(state.busy);
+el('consent').onchange=()=>locked(state.busy);
+el('login').onclick=async()=>{
+  if(state.busy)return;
+  if(!el('access').value){setStatus('Введи ключ доступа.',true);return;}
+  locked(true);setStatus('Выполняю вход...');
+  try{
+    await api('/api/session','POST',{remember:el('remember').checked},el('access').value);
+    el('access').value='';
+    // Verify cookie acceptance instead of showing a successful but unusable login.
+    await api('/api/session','GET');state.authenticated=true;setStatus('Вход выполнен.');
+  }catch(e){state.authenticated=false;setStatus(e.message,true);}finally{locked(false);}
+};
+el('access').onkeydown=(e)=>{if(e.key==='Enter')el('login').click();};
+el('logout').onclick=async()=>{
+  if(state.busy)return;
+  if(state.form&&Object.keys(state.answers).length&& !el('questions').hidden
+      &&!confirm('Выйти? Незавершённые ответы будут потеряны.'))return;
+  locked(true);setStatus('Выход...');
+  try{
+    await api('/api/session','DELETE');state.authenticated=false;
+    locked(false);home();el('remember').checked=false;setStatus('Вход на этом устройстве удалён.');
+  }catch(e){setStatus('Не удалось выйти. '+e.message,true);}finally{locked(false);}
+};
 el('profileOpen').onclick=async()=>{
-  if(state.busy||!el('access').value)return;
-  state.key=el('access').value;locked(true);setStatus('Собираю сохранённый профиль...');
+  if(state.busy||!state.authenticated)return;
+  locked(true);setStatus('Собираю сохранённый профиль...');
   try{
     const data=await api('/api/profile','GET');
     showProfile(data);el('access').value='';state.fromProfile=true;setStatus('');
-  }catch(e){state.key='';setStatus(e.message,true);}finally{locked(false);}
+  }catch(e){setStatus(e.message,true);}finally{locked(false);}
 };
 el('profileHome').onclick=home;
 el('profileHistory').onclick=async()=>{
@@ -239,13 +299,13 @@ el('profileHistory').onclick=async()=>{
 el('historyProfile').onclick=()=>{if(!state.busy&&state.historyFromProfile){show('profile');setStatus('');}};
 el('resultProfile').onclick=()=>{if(!state.busy&&state.fromProfile){show('profile');setStatus('');}};
 el('historyOpen').onclick=async()=>{
-  if(state.busy||!el('access').value)return;
-  state.key=el('access').value;locked(true);setStatus('Загружаю историю...');
+  if(state.busy||!state.authenticated)return;
+  locked(true);setStatus('Загружаю историю...');
   try{
     await loadHistory(true);el('access').value='';
     state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
     el('historyProfile').hidden=true;show('history');setStatus('');
-  }catch(e){state.key='';setStatus(e.message,true);}finally{locked(false);}
+  }catch(e){setStatus(e.message,true);}finally{locked(false);}
 };
 el('historyMore').onclick=async()=>{
   if(state.busy||!state.historyCursor)return;
@@ -255,14 +315,19 @@ el('historyMore').onclick=async()=>{
 el('historyHome').onclick=home;
 el('resultHome').onclick=home;
 el('resultHistory').onclick=()=>{if(!state.busy&&state.fromHistory){show('history');setStatus('');}};
-el('start').onclick=async()=>{
-  if(state.busy||!el('consent').checked||!el('access').value)return;
-  state.key=el('access').value;locked(true);setStatus('Загружаю вопросы...');
+async function startAssessment(formKey){
+  if(state.busy||!el('consent').checked||!state.authenticated)return;
+  locked(true);setStatus('Загружаю вопросы...');
   try{
-    state.form=await api('/api/forms/UALP_WV21_RU_LIKERT','GET');state.answers={};state.index=0;state.fromHistory=false;state.fromProfile=false;
+    state.form=await api('/api/forms/'+encodeURIComponent(formKey),'GET');
+    if(state.form.formKey!==formKey||!Array.isArray(state.form.items)||!state.form.items.length)
+      throw new Error('Сервер вернул неожиданную форму');
+    state.answers={};state.index=0;state.fromHistory=false;state.fromProfile=false;
     state.requestId=newId();el('access').value='';render();setStatus('');
   }catch(e){setStatus(e.message,true);}finally{locked(false);}
-};
+}
+el('start').onclick=()=>startAssessment('UALP_WV21_RU_LIKERT');
+el('startRiasec').onclick=()=>startAssessment('ONET_SHORT_60_DIGITAL');
 el('previous').onclick=()=>{if(!state.busy&&state.index>0){state.index--;render();}};
 el('next').onclick=async()=>{
   if(state.busy)return;
@@ -273,10 +338,17 @@ el('next').onclick=async()=>{
   if(answers.some(x=>!x.optionKey)){setStatus('Ответьте на каждый вопрос.',true);return;}
   locked(true);setStatus('Записываю ответы и рассчитываю результат...');
   try{
-    const out=await api('/api/runs','POST',{requestId:state.requestId,formKey:'UALP_WV21_RU_LIKERT',consent:true,answers});
+    const out=await api('/api/runs','POST',{requestId:state.requestId,formKey:state.form.formKey,consent:true,answers});
     state.fromHistory=false;state.fromProfile=false;displayResult(out);
-    state.key='';setStatus('Сохранено. Для истории и нового теста требуется повторный вход.');
+    setStatus('Сохранено. Профиль и другие тесты доступны на главной.');
   }catch(e){setStatus(e.message,true);}finally{locked(false);}
 };
+async function restoreSession(){
+  locked(true);
+  try{await api('/api/session','GET');state.authenticated=true;setStatus('Вход восстановлен.');}
+  catch(e){state.authenticated=false;setStatus(e.message.includes('Вход не выполнен')?'':e.message,true);}
+  finally{locked(false);}
+}
+restoreSession();
 })();
 </script></main></body></html>
