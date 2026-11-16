@@ -856,6 +856,43 @@ def test_10_private_source_locked_riasec_http_in_ephemeral_ci(
     assert grouped[ENABLED_FORM]["completedRuns"] == 14
     assert api.get("/api/runs/"+out["runId"],headers=headers()).status_code == 200
 
+    # History crosses existing real-form keys, not unrelated synthetic catalog rows.
+    before_history = counts(isolated_postgres)
+    assert api.get("/api/history", params={"formKey": "CI_PROFILE_EXTRA"},
+                   headers=headers()).status_code == 422
+    assert api.get("/api/history", params={"formKey": "ICAR16_DIGITAL"},
+                   headers=headers()).status_code == 422
+    assert api.get("/api/history", params={"formKey": "ALL"}).status_code == 401
+    riasec_history = api.get("/api/history", params={"formKey": real_key},
+                             headers=headers())
+    assert riasec_history.status_code == 200
+    assert riasec_history.json()["formKeyFilter"] == real_key
+    assert [x["runId"] for x in riasec_history.json()["items"]] == [out["runId"]]
+    assert all(x["formKey"] == real_key for x in riasec_history.json()["items"])
+    default_history = api.get("/api/history", headers=headers())
+    assert default_history.status_code == 200
+    assert default_history.json()["formKeyFilter"] == ENABLED_FORM
+    assert all(x["formKey"] == ENABLED_FORM for x in default_history.json()["items"])
+    combined_1 = api.get("/api/history", params={"formKey": "ALL"},
+                         headers=headers())
+    assert combined_1.status_code == 200, combined_1.text
+    assert len(combined_1.json()["items"]) == 10
+    assert combined_1.json()["nextCursor"]
+    combined_2 = api.get("/api/history", params={
+        "formKey": "ALL", "cursor": combined_1.json()["nextCursor"],
+    }, headers=headers())
+    assert combined_2.status_code == 200, combined_2.text
+    combined_entries = combined_1.json()["items"] + combined_2.json()["items"]
+    assert len(combined_entries) == 15
+    assert len({x["runId"] for x in combined_entries}) == 15
+    assert {x["formKey"] for x in combined_entries} == {real_key, ENABLED_FORM}
+    assert out["runId"] in {x["runId"] for x in combined_entries}
+    assert combined_2.json()["nextCursor"] is None
+    for response in (riasec_history, default_history, combined_1, combined_2):
+        for secret_field in ("answers", "optionKey", "payload_sha256", "raw_score"):
+            assert secret_field not in response.text
+    assert counts(isolated_postgres) == before_history
+
     # Disabling private gate affects new reads and writes, not saved Work Values.
     monkeypatch.setattr(server, "_owner_riasec_allowed",
                         lambda conn, key: False)
