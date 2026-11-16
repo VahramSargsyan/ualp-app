@@ -11,7 +11,24 @@ const assert=require('node:assert/strict');
  await page.goto('https://127.0.0.1:8843');
  await page.locator('#login').waitFor({state:'visible'});
  assert(await page.locator('#remember').isChecked(), 'Private owner TEST must offer persistent sign-in by default');
- await page.locator('#access').fill('synthetic-browser-only-access-key-000000000000');
+ const key='synthetic-browser-only-access-key-000000000000';
+ // Distinguish rejected key from a server-accepted login whose browser loses the session cookie.
+ await page.locator('#access').fill('wrong-synthetic-key');
+ await page.locator('#login').click();
+ await page.waitForFunction(()=>document.getElementById('status').textContent.includes('LOGIN_REQUEST_FAILED'));
+ assert.equal(await page.locator('#access').inputValue(),'wrong-synthetic-key');
+ // Simulate an otherwise successful server cookie issue followed by a blocked/absent cookie on verification.
+ await page.route('**/api/session',async route=>{
+   if(route.request().method()==='GET')
+     return route.fulfill({status:401,contentType:'application/json',body:JSON.stringify({detail:'Access denied'})});
+   return route.continue();
+ });
+ await page.locator('#access').fill(key);
+ await page.locator('#login').click();
+ await page.waitForFunction(()=>document.getElementById('status').textContent.includes('SESSION_COOKIE_CHECK_FAILED'));
+ assert.equal(await page.locator('#access').inputValue(),key,'Never discard key before cookie check');
+ assert(!(await page.locator('#signedIn').isVisible()),'Do not claim authenticated when cookie check fails');
+ await page.unroute('**/api/session');
  await page.locator('#login').click();
  await page.locator('#signedIn').waitFor({state:'visible'});
  assert.equal(await page.locator('#access').inputValue(),'');
@@ -59,6 +76,6 @@ const assert=require('node:assert/strict');
  await page.locator('#logout').click();
  await page.locator('#loginFields').waitFor({state:'visible'});
  assert.deepEqual(errors,[]);
- console.log('PASS: default 30-day remembered owner login, cookie flags, reopened browser, profile/home, 60-item UI, logout, shared-device session-only opt-out; catalog/results mocked');
+ console.log('PASS: rejected key vs failed session cookie, key not cleared on failure, default 30-day login, browser reopen, profile, logout, shared-device opt-out; local HTTPS synthetic');
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
