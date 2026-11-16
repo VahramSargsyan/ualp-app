@@ -1,7 +1,7 @@
 name: UALP ephemeral PostgreSQL integration
 on:
   push:
-    branches: ['feature/ualp-mvp-001-vercel-test', 'feature/ualp-mvp-002-history-test', 'feature/ualp-mvp-003-profile-test']
+    branches: ['feature/ualp-mvp-001-vercel-test', 'feature/ualp-mvp-002-history-test', 'feature/ualp-mvp-003-profile-test', 'feature/ualp-mvp-004-riasec-source-gate']
   pull_request:
     paths:
       - 'webapp/**'
