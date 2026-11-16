@@ -46,3 +46,15 @@ On Vercel dashboard, use the authenticated Hobby account to create a project nam
 
 ROLLBACK: revert feature branch, leave Neon and VBOS unchanged; cancel/remove only the new unaccepted Vercel Preview after appropriate confirmation. No DB migration.
 STATUS: CANDIDATE_CI_PASS / VERCEL_CREATE_403_BLOCKED.
+
+
+## 2026-11-16 Preview environment setup and controlled redeploy
+
+The owner reported that `UALP_ENV=TEST`, `DATABASE_URL` and `UALP_ACCESS_KEY` were saved in Vercel Preview environment using the dashboard. This is OWNER_REPORTED; actual variable metadata and values have NOT been independently verified because the connected Vercel project API returns 404 and deployment listing returns 403 for the confirmed project. Do not store credentials in this repository.
+
+A **documentation-only** commit records this checkpoint and intentionally triggers Vercel Git integration to generate a new Preview deployment for branch `feature/ualp-mvp-001-vercel-test` with newly saved Preview environment. Its exact commit identity, Vercel status and runtime result must be read back separately before claiming success.
+
+The prior Preview `c0f001bc579df30238f8992088581abeb249ccba` had GitHub status SUCCESS and Vercel PR comment READY at:
+https://ualp-app-git-feature-ualp-mvp-001-vercel-test-vahram-sargsyan.vercel.app
+
+Live authenticated HTTP, Neon connection, persisted 21-answer run, duplicate retry and mobile usability remain NOT_RUN until verified. Do not modify VBOS or the old Render UALP service during this gate.
