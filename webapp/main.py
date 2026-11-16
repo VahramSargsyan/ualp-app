@@ -15,9 +15,11 @@ from psycopg.rows import dict_row
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+from webapp.riasec_scoring import RIASECContractError, score_catalog_short_form
 
 APP_VERSION = "0.3.0-profile-test"
 ENABLED_FORM = "UALP_WV21_RU_LIKERT"
+CI_SYNTHETIC_FORM = "CI_RIASEC_60_SYNTHETIC"
 ROOT = Path(__file__).resolve().parent
 
 app = FastAPI(
@@ -61,13 +63,29 @@ def home():
 def health():
     return {"status": "TEST_ONLY", "version": APP_VERSION, "database": "PostgreSQL"}
 
+def _ci_synthetic_riasec_allowed(conn, key: str) -> bool:
+    """P0 firewall: synthetic RIASEC can run ONLY against disposable localhost CI.
+
+    Cannot unlock the owner's Neon or Vercel database from environment alone.
+    """
+    return (
+        key == CI_SYNTHETIC_FORM
+        and os.getenv("UALP_ENV") == "TEST"
+        and os.getenv("UALP_CI_MODE") == "EPHEMERAL_POSTGRES"
+        and os.getenv("UALP_CI_RIASEC_INTEGRATION") == "1"
+        and conn.info.host in ("127.0.0.1", "localhost")
+        and conn.info.dbname == "ualp_ci"
+        and conn.info.user == "postgres"
+    )
+
+
 def fetch_form(conn, key: str):
     form = conn.execute(
         """SELECT form_id,form_key,form_version,locale,status,item_count,
                   algorithm_version,validation_status
            FROM ualp_catalog_forms WHERE form_key = %s""", (key,)
     ).fetchone()
-    if not form or key != ENABLED_FORM or form["status"] != "DRAFT":
+    if not form or (key != ENABLED_FORM and not _ci_synthetic_riasec_allowed(conn, key)) or form["status"] != "DRAFT":
         raise HTTPException(404, "Pilot form not available")
     items = conn.execute(
         """SELECT item_id,prompt,display_order,required FROM ualp_catalog_items
@@ -77,8 +95,13 @@ def fetch_form(conn, key: str):
         """SELECT option_key,label FROM ualp_catalog_options
            WHERE form_id=%s ORDER BY display_order""", (form["form_id"],)
     ).fetchall()
-    if (form["item_count"] != 21 or len(items) != 21 or len(options) != 5
-            or len({x["item_id"] for x in items}) != 21):
+    item_count = 60 if key == CI_SYNTHETIC_FORM else 21
+    if (form["item_count"] != item_count or len(items) != item_count or len(options) != 5
+            or len({x["item_id"] for x in items}) != item_count
+            or (key == CI_SYNTHETIC_FORM and
+                (form["algorithm_version"] != "RIASEC-SUM-v1" or
+                 form["validation_status"] != "NOT_REVIEWED" or
+                 form["form_version"] != "synthetic-only"))):
         raise HTTPException(503, "Pilot form catalog incomplete")
     return form, items, options
 
@@ -157,12 +180,14 @@ def stored_result(conn, run_id: str):
         "scores": [{"scaleId": s["scale_id"], "key": s["scale_key"],
                     "label": s["label"], "mean": s["raw_score"],
                     "answered": s["answered_count"]} for s in scores],
-        "notice": "Сырые оценки 0–4, только исследовательский TEST. Без норм и прогнозов профессий.",
+        "notice": ("Сырые суммы 0–40 для синтетического CI, без интерпретации."
+                   if run["algorithm_version"] == "RIASEC-SUM-v1"
+                   else "Сырые оценки 0–4, только исследовательский TEST. Без норм и прогнозов профессий."),
     }
 
 @app.post("/api/runs", status_code=status.HTTP_201_CREATED)
 def submit(data: Submission, url: str = Depends(authorized)):
-    if data.formKey != ENABLED_FORM:
+    if data.formKey not in (ENABLED_FORM, CI_SYNTHETIC_FORM):
         raise HTTPException(404, "Form unavailable")
     if data.consent is not True:
         raise HTTPException(422, "Explicit pilot consent required")
@@ -174,6 +199,8 @@ def submit(data: Submission, url: str = Depends(authorized)):
     ).encode("utf-8")).hexdigest()
     request_id = data.requestId
     with connect(url) as conn:
+        if data.formKey == CI_SYNTHETIC_FORM and not _ci_synthetic_riasec_allowed(conn, data.formKey):
+            raise HTTPException(404, "Form unavailable")
         old = conn.execute(
             """SELECT run_id,form_id,payload_sha256 FROM ualp_assessment_runs
                WHERE request_id=%s""", (request_id,)
@@ -191,7 +218,7 @@ def submit(data: Submission, url: str = Depends(authorized)):
         form_row, items, _ = fetch_form(conn, data.formKey)
         required = {x["item_id"] for x in items}
         if set(answer_map) != required:
-            raise HTTPException(422, "All 21 original items must be answered exactly once")
+            raise HTTPException(422, "All required form items must be answered exactly once")
         scored_options = conn.execute(
             """SELECT option_key,score_value FROM ualp_catalog_options
                WHERE form_id=%s""", (form_row["form_id"],)
@@ -211,8 +238,18 @@ def submit(data: Submission, url: str = Depends(authorized)):
             (form_row["form_id"],)
         ).fetchall()
         try:
-            computed = compute_scores(answer_map, option_map, links, rules)
-        except ValueError:
+            if data.formKey == CI_SYNTHETIC_FORM:
+                scales = conn.execute(
+                    """SELECT scale_id,scale_key,is_parent FROM ualp_catalog_scales
+                       WHERE form_id=%s ORDER BY scale_key""",
+                    (form_row["form_id"],),
+                ).fetchall()
+                computed = score_catalog_short_form(
+                    answer_map, option_map, links, rules, scales
+                )
+            else:
+                computed = compute_scores(answer_map, option_map, links, rules)
+        except (ValueError, RIASECContractError):
             raise HTTPException(503, "Pilot scoring catalog has not passed consistency checks")
         run_id = uuid.uuid4()
         try:
