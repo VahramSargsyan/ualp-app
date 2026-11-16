@@ -19,7 +19,16 @@ jobs:
           HTTP_STATUS=$(curl --silent --show-error --max-time 25 -D /tmp/ualp-health-headers -o /tmp/ualp-health.json -w '%{http_code}' "$BASE/health")
           echo "GET /health HTTP $HTTP_STATUS"
           grep -i "^content-type:" /tmp/ualp-health-headers | tail -1 || true
-          test "$HTTP_STATUS" = "200" || { echo "Expected 200"; exit 1; }
+          # Display only the redirect host/path, never a query token or cookie.
+          python3 - <<'PY'
+          from urllib.parse import urlsplit
+          headers = open("/tmp/ualp-health-headers", encoding="utf-8").read().splitlines()
+          locations = [v.split(":",1)[1].strip() for v in headers if v.lower().startswith("location:")]
+          if locations:
+              target = urlsplit(locations[-1])
+              print("HTTP redirect -> host:",target.hostname,"path:",target.path[:120])
+          PY
+          test "$HTTP_STATUS" = "200" || { echo "Expected health JSON 200; non-200 is NOT_RUN for app-level HTTP auth"; exit 1; }
           python3 - <<'PY'
           import json,re
           from json import JSONDecodeError
