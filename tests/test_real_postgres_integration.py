@@ -722,3 +722,145 @@ def test_09_unused_catalog_guarded_rollback_in_ephemeral_postgres(
         ).fetchone())
         assert new_work_values == old_work_values
     assert counts(isolated_postgres) == old_runs
+
+
+
+def test_10_private_source_locked_riasec_http_in_ephemeral_ci(
+    api, isolated_postgres, monkeypatch,
+):
+    """Synthetic source-locked private RIASEC; no O*NET text or remote Neon writes."""
+    from webapp import main as server
+    from webapp.riasec_manifest import (
+        DRAFT_STATUS, PRIVATE_SCOPE, LICENSE_URL, SCHEMA_VERSION,
+        validate_private_manifest,
+    )
+    from webapp.riasec_scoring import RIASEC_AREAS
+
+    assert counts(isolated_postgres) == (18, 475, 397)
+    real_key = server.OWNER_RIASEC_FORM
+    assert real_key == "ONET_SHORT_60_DIGITAL"
+    # The production guard MUST reject the local CI DB even when the form exists.
+    with psycopg.connect(isolated_postgres) as check:
+        assert not server._owner_riasec_allowed(check, real_key)
+
+    items = [f"CI_PERSONAL_SOURCE_{i:02d}" for i in range(60)]
+    scales = [f"SCALE-{i+1:06d}" for i in range(6)]
+    choices = [f"CI_PERSONAL_OPT_{i}" for i in range(5)]
+    synthetic_manifest = {
+        "schemaVersion": SCHEMA_VERSION,
+        "formKey": real_key,
+        "formVersion": server.OWNER_RIASEC_VERSION,
+        "sourceFormId": "FORM-000001",
+        "locale": "ru",
+        "purpose": "VOLUNTARY_SELF_EXPLORATION",
+        "distributionScope": PRIVATE_SCOPE,
+        "validationStatus": DRAFT_STATUS,
+        "algorithmVersion": "RIASEC-SUM-v1",
+        "licenseUrl": LICENSE_URL,
+        "items": [
+            {"itemId": item, "sourceIndex": i+1,
+             "prompt": f"Синтетическая задача для CI {i+1}",
+             "scaleKey": RIASEC_AREAS[i // 10],
+             "reviewStatus": DRAFT_STATUS}
+            for i,item in enumerate(items)
+        ],
+        "options": [
+            {"optionKey": choice,"label":f"Синтетический выбор {i}",
+             "scoreValue": i, "reviewStatus": DRAFT_STATUS}
+            for i,choice in enumerate(choices)
+        ],
+        "scales": [
+            {"scaleKey": area, "label": f"Синтетическая шкала {area}"}
+            for area in RIASEC_AREAS
+        ],
+    }
+    receipt = validate_private_manifest(synthetic_manifest)
+    with psycopg.connect(isolated_postgres) as conn:
+        with conn.cursor() as cur:
+            cur.execute("""INSERT INTO ualp_catalog_forms
+                (form_id,form_key,form_version,locale,status,validation_status,
+                 item_count,algorithm_version)
+                VALUES (%s,%s,%s,'ru','DRAFT','NOT_REVIEWED',60,'RIASEC-SUM-v1')""",
+                ("FORM-000001", real_key, server.OWNER_RIASEC_VERSION))
+            cur.executemany("""INSERT INTO ualp_catalog_items
+                (item_id,form_id,prompt,display_order,required)
+                VALUES (%s,'FORM-000001',%s,%s,true)""",
+                [(item,synthetic_manifest["items"][i]["prompt"],i+1)
+                 for i,item in enumerate(items)])
+            cur.executemany("""INSERT INTO ualp_catalog_options
+                (form_id,option_key,label,score_value,display_order)
+                VALUES ('FORM-000001',%s,%s,%s,%s)""",
+                [(choice, synthetic_manifest["options"][i]["label"],i,i+1)
+                 for i,choice in enumerate(choices)])
+            cur.executemany("""INSERT INTO ualp_catalog_scales
+                (scale_id,form_id,scale_key,label,is_parent)
+                VALUES (%s,'FORM-000001',%s,%s,true)""",
+                [(sid,area,synthetic_manifest["scales"][i]["label"])
+                 for i,(sid,area) in enumerate(zip(scales,RIASEC_AREAS))])
+            cur.executemany("""INSERT INTO ualp_catalog_links
+                (item_id,scale_id,weight,direction)
+                VALUES (%s,%s,1,'POSITIVE')""",
+                [(item, scales[i // 10]) for i,item in enumerate(items)])
+            cur.executemany("""INSERT INTO ualp_catalog_scoring_rules
+                (form_id,scale_id,method,min_items,algorithm_version,status)
+                VALUES ('FORM-000001',%s,'SUM',10,'RIASEC-SUM-v1','DRAFT')""",
+                [(sid,) for sid in scales])
+
+    # Explicitly blocked until owner-only server gate and exact source lock agree.
+    assert api.get("/api/forms/"+real_key, headers=headers()).status_code == 404
+    monkeypatch.setattr(server, "OWNER_RIASEC_SHA256", "0"*64)
+    monkeypatch.setattr(server, "_owner_riasec_allowed",
+                        lambda conn, key: key == real_key)
+    assert api.get("/api/forms/"+real_key, headers=headers()).status_code == 503
+    monkeypatch.setattr(server, "OWNER_RIASEC_SHA256",
+                        receipt.source_digest_sha256)
+    response = api.get("/api/forms/"+real_key, headers=headers())
+    assert response.status_code == 200, response.text
+    assert len(response.json()["items"]) == 60
+    assert len(response.json()["options"]) == 5
+    assert response.json()["validationStatus"] == "NOT_REVIEWED"
+    assert response.json()["sourceLicense"] == LICENSE_URL
+    for hidden in ("score_value", "weight", "payload_sha256", "isCorrect"):
+        assert hidden not in response.text
+    assert api.get("/api/forms/"+real_key).status_code == 401
+
+    request = {
+        "requestId": str(uuid.uuid4()),
+        "formKey": real_key, "consent": True,
+        "answers": [
+            {"itemId": item, "optionKey": choices[(i // 10) % 5]}
+            for i,item in enumerate(items)
+        ],
+    }
+    saved = api.post("/api/runs",json=request,headers=headers())
+    assert saved.status_code == 201, saved.text
+    out = saved.json()
+    assert out["scoringAlgorithmVersion"] == "RIASEC-SUM-v1"
+    assert {x["key"]:int(x["mean"]) for x in out["scores"]} == {
+        "R":0, "I":10, "A":20, "S":30, "E":40, "C":0
+    }
+    assert counts(isolated_postgres) == (19, 535, 403)
+    retry = api.post("/api/runs",json=request,headers=headers())
+    assert retry.status_code == 201 and retry.json() == out
+    assert counts(isolated_postgres) == (19, 535, 403)
+    altered = dict(request, answers=[dict(v) for v in request["answers"]])
+    altered["answers"][0]["optionKey"] = choices[4]
+    assert api.post("/api/runs",json=altered,headers=headers()).status_code == 409
+    assert counts(isolated_postgres) == (19, 535, 403)
+
+    profile = api.get("/api/profile",headers=headers())
+    assert profile.status_code == 200
+    grouped = {x["formKey"]:x for x in profile.json()["methods"]}
+    assert grouped[real_key]["completedRuns"] == 1
+    assert len(grouped[real_key]["parentScores"]) == 6
+    assert grouped[ENABLED_FORM]["completedRuns"] == 14
+    assert api.get("/api/runs/"+out["runId"],headers=headers()).status_code == 200
+
+    # Disabling private gate affects new reads and writes, not saved Work Values.
+    monkeypatch.setattr(server, "_owner_riasec_allowed",
+                        lambda conn, key: False)
+    assert api.get("/api/forms/"+real_key, headers=headers()).status_code == 404
+    request["requestId"] = str(uuid.uuid4())
+    assert api.post("/api/runs", json=request, headers=headers()).status_code == 404
+    assert api.get("/api/forms/"+ENABLED_FORM, headers=headers()).status_code == 200
+    assert counts(isolated_postgres) == (19, 535, 403)
