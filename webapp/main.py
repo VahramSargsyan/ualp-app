@@ -17,8 +17,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from webapp.riasec_scoring import RIASECContractError, score_catalog_short_form
 from webapp.riasec_manifest import (
-    DRAFT_STATUS, LICENSE_URL, PRIVATE_SCOPE, SCHEMA_VERSION,
-    ManifestError, validate_private_manifest,
+    LICENSE_URL, ManifestError, verify_private_postgres_catalog,
 )
 
 APP_VERSION = "0.4.0-riasec-private-test"
@@ -140,37 +139,9 @@ def _verify_owner_riasec_catalog(conn, form_row, items) -> None:
     mapping = {x["item_id"]: x["scale_key"] for x in links}
     if len(mapping) != 60:
         raise HTTPException(503, "Private RIASEC link identities invalid")
-    private_manifest = {
-        "schemaVersion": SCHEMA_VERSION,
-        "formKey": OWNER_RIASEC_FORM,
-        "formVersion": form_row["form_version"],
-        "sourceFormId": form_row["form_id"],
-        "locale": "ru",
-        "purpose": "VOLUNTARY_SELF_EXPLORATION",
-        "distributionScope": PRIVATE_SCOPE,
-        "validationStatus": DRAFT_STATUS,
-        "algorithmVersion": "RIASEC-SUM-v1",
-        "licenseUrl": LICENSE_URL,
-        "items": [
-            {"itemId": x["item_id"], "sourceIndex": x["display_order"],
-             "prompt": x["prompt"], "scaleKey": mapping[x["item_id"]],
-             "reviewStatus": DRAFT_STATUS}
-            for x in items
-        ],
-        "options": [
-            {"optionKey": x["option_key"], "label": x["label"],
-             "scoreValue": int(x["score_value"]),
-             "reviewStatus": DRAFT_STATUS}
-            for x in option_rows
-        ],
-        "scales": [
-            {"scaleKey": x["scale_key"], "label": x["label"]}
-            for x in scales
-        ],
-    }
     try:
-        receipt = validate_private_manifest(
-            private_manifest, expected_digest=OWNER_RIASEC_SHA256
+        receipt = verify_private_postgres_catalog(
+            form_row, items, option_rows, scales, mapping, OWNER_RIASEC_SHA256
         )
     except (ManifestError, KeyError, ValueError, TypeError, ArithmeticError):
         raise HTTPException(503, "Private RIASEC source-lock mismatch") from None
