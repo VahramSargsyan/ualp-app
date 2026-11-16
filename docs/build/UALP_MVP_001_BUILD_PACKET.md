@@ -247,3 +247,16 @@ ACCEPTANCE: A fresh browser starts with remember checked, POST session includes 
 TEST_LEVEL: synthetic local HTTPS Chromium + existing Python/ephemeral PostgreSQL CI + Vercel build status; actual private authenticated Vercel mobile owner flow pending. Earlier tests did not cover the default remember checkbox.
 ROLLBACK: revert scoped owner sign-in UX commit; no DB migration/restore. Existing saved test answers remain.
 PAID_API_BUDGET: 0; EXECUTOR: current assistant only; REPAIR_LIMIT: up to two focused cycles; AUTHORIZATION_END: exact TEST candidate, receipt and owner acceptance; no main/PROD merge.
+
+
+### MVP-005.2 — distinguish rejected login from failed cookie readback (owner screenshot 2026-11-16)
+
+CAPABILITY_ID: UALP-MVP-005.2 / SESSION_LOGIN_FAILURE_FEEDBACK
+MODE: PATCH_FIX, risk L2 authentication usability. BASE_COMMIT: dace0323dff6970a2848b8d1cef1963061568e39; branch feature/ualp-mvp-006-draft-resume-test (draft PR #7, no main or PROD).
+USER_OBSERVED: Owner's phone screenshot shows a red message "Вход не выполнен или истёк. Введи ключ доступа ещё раз. Если авторизация исчезает ..." and disabled authenticated navigation. That wording occurs in the login click exception, and a 401 can arise either at the POST session-key check or at the post-login GET session-cookie check. The screenshot does not prove which operation failed; a host-/browser-specific cookie failure remains HYPOTHESIS, not CONFIRMED.
+SOURCE_DEFECT: UI cleared the long input key before verifying the issued cookie by GET /api/session. A rejected GET forced unnecessary retyping. The generic auth error obscured login-request failure vs readback failure.
+PATCH_BOUNDARY: Retain key in transient password input until the GET cookie readback succeeds; no persistence in localStorage, sessionStorage, cookies, source or logs. Display separate code SESSION_COOKIE_CHECK_FAILED when login POST succeeds but cookie GET fails, and LOGIN_REQUEST_FAILED when POST or remember confirmation fails; no misleading implication that the key was wrong. Preserve "signed in" only after GET 200. Existing secure signed 30-day HttpOnly cookie, server auth/security, no new credentials or bypass remain unchanged.
+TEST: Synthetic local HTTPS Chromium injects rejected key and a 401 cookie readback after server-issued cookie, checks distinct messages, retained transient input, unauthenticated UI, then removes injection, retries login and verifies original full 30-day lifecycle. Full Python/JS/Chromium suite and isolated ephemeral PG CI run after source commit.
+CANONICAL_DATA / MIGRATION: No DB/schema, test results, catalog, form IDs or source-content changes. Does not claim to fix the underlying actual Vercel 401 without observed status details. No PROD.
+ROLLBACK: Revert two scoped UI/test commits to earlier stable candidate; no DB restore. Owner acceptance: exact branch Preview on same Chrome hostname, note whether error code is LOGIN_REQUEST_FAILED or SESSION_COOKIE_CHECK_FAILED, never share the actual key.
+AUTHORIZATION_END: bounded diagnostic PATCH and TEST verification only; if live 401 remains, stop and request the one non-secret error-code screenshot rather than weakening authentication.
