@@ -54,3 +54,27 @@ REQUIRED_EVIDENCE: deterministic tests, ephemeral real Postgres integration, Ver
 PAID_API_BUDGET: 0; EXECUTOR: current assistant only.
 UNRESOLVED_DECISIONS: NONE within one-owner TEST; multi-user ownership and retention remain future, not assumed here.
 AUTHORIZATION_END: report MVP-002 and stop; no main merge or PROD.
+
+
+## UALP-MVP-003 — single-owner derived profile from completed assessments (2026-11-16)
+
+CAPABILITY_ID: UALP-MVP-003
+USER_RESULT: After entering the existing TEST key, the owner sees a consolidated read-only profile showing which assessment methods have actually been completed, number of completions, date and version of latest completion, and saved parent-scale values. Reassessment updates the latest snapshot. Methods not completed/validated appear as pending, NEVER fabricated results.
+WORKFLOW_MODE: IMPLEMENT_FEATURE
+RISK_CLASS: L2 — limited read-only output on sensitive profile scores, no schema change.
+BASE_COMMIT: 8c5439dc4d06c93fccf797c532502e730f35c7f0 (MVP-002 USER_ACCEPTED_TEST)
+OWNER_BRANCH: feature/ualp-mvp-003-profile-test
+TEST_TARGET: distinct Vercel Hobby Preview for MVP-003, existing isolated Neon Free ualp_test; ephemeral PostgreSQL 18 in CI with synthetic data.
+OWNER / TEST: Vahram / UALP owner-only private TEST.
+CANONICAL_SOURCE: ualp_assessment_runs, ualp_catalog_forms, ualp_scale_scores and ualp_catalog_scales; no alternate browser cache or hand-authored scores.
+SCOPE: key-gated GET /api/profile; group stored COMPLETED runs by form, show latest run per method and count, only parent scores, track no scores for uncompleted methods; mobile profile accessible without re-taking questions; view latest saved result; preserve existing history and test flows.
+OUT_OF_SCOPE: user accounts/IDs, cross-user profiles, storage of inferred traits, cross-test psychometric norms, fit/readiness scoring, career advice, new tests/catalog imports, local credential storage, paid or PROD deployment, merging unaccepted PRs.
+SHARED_HOTSPOTS: webapp/main.py, webapp/index.html, tests/test_real_postgres_integration.py and CI workflows.
+SCHEMA_IMPACT / MIGRATION_PLAN: NONE. Derive profile read-only from existing 10-table catalog/runtime and existing index; do not touch stored IDs, statuses, scores, responses or version schema. Do not leak responses or scoring keys into profile JSON.
+ACCEPTANCE: no/invalid key denied; empty profile is truthful; one saved method returns 1 Work Values with 1 run and six original parent scores; second synthetic assessment demonstrates independent method groups; subsequent completion updates latest snapshot; no DB writes; no false RIASEC/ICAR scores; mobile navigation and return to old history / questionnaire work.
+REQUIRED_EVIDENCE: GitHub Python+JS checks, ephemeral real PostgreSQL integration (single/second method and updated latest), exact Vercel Preview deploy, read-only Neon counts, owner phone acceptance.
+ROLLBACK: revert MVP-003 Preview branch only; user profile is derived, so no data migration or stored-profile deletion. MVP-002 accepted Preview and Neon unchanged.
+PAID_API_BUDGET: 0; EXECUTOR_PERMISSION: current assistant only.
+UNRESOLVED_DECISIONS: NONE for single-owner noncommercial TEST. Personal-account identity, privacy policy, psychometric standards and multi-user data partition remain separately gated.
+STOP_CONDITIONS: authentication or privacy regression, new migration/account policy need, paid infra, failed real DB check after focused repairs.
+AUTHORIZATION_END: MVP-003 TEST acceptance/review, then stop. No main/PROD promotion.
