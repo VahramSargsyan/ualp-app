@@ -22,6 +22,7 @@ progress{width:100%;height:12px;accent-color:#245fac}
 .error{background:#ffecec;color:#9c2424;padding:14px;border-radius:10px;margin:12px 0}
 .scores{list-style:none;padding:0}.scores li{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e6eaf1;padding:11px 0}
 .score{font-weight:700;font-variant-numeric:tabular-nums}
+.history-list{list-style:none;margin:16px 0;padding:0}.history-list li{border-bottom:1px solid #e6eaf1;padding:14px 0;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.history-list .muted{margin:6px 0 0}button:focus-visible,input:focus-visible{outline:3px solid #ffb548;outline-offset:2px}
 [hidden]{display:none!important}
 </style></head>
 <body><main>
@@ -33,7 +34,15 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <label for="access">Ключ доступа TEST</label>
 <input id="access" type="password" autocomplete="off" placeholder="Введите приватный ключ">
 <p><label><input type="checkbox" id="consent"> Я понимаю экспериментальный статус теста и согласен сохранить мои ответы в TEST.</label></p>
-<div class="actions"><span class="muted">21 вопрос · примерно 5–7 минут</span><button class="primary" id="start" disabled>Начать</button></div>
+<p class="muted">Посмотреть предыдущие прохождения можно без нового теста: достаточно ключа доступа.</p>
+<div class="actions"><button id="historyOpen" disabled>История результатов</button><button class="primary" id="start" disabled>Начать тест</button></div>
+</section>
+<section class="card" id="history" hidden>
+<h2>История прохождений</h2>
+<p class="muted">Сохранённые прохождения Work Values. Отображаются только даты и версия. Нажми «Открыть», чтобы увидеть ранее рассчитанные шесть показателей.</p>
+<ul id="historyList" class="history-list"></ul>
+<p id="historyEmpty" class="muted" hidden>Сохранённых прохождений пока нет.</p>
+<div class="actions"><button id="historyHome">На главную</button><button id="historyMore" hidden>Показать ещё</button></div>
 </section>
 <section class="card" id="questions" hidden>
 <p class="muted" id="position"></p><progress id="progress" value="0" max="21"></progress>
@@ -44,17 +53,18 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <h2>Результат сохранён в PostgreSQL</h2>
 <p class="muted">Ниже указаны только средние значения приоритетов по шести группам (0–4), без норм и рекомендаций.</p>
 <ul id="scores" class="scores"></ul><p class="muted" id="reference"></p>
+<div class="actions"><button id="resultHome">На главную</button><button id="resultHistory" hidden>К истории</button></div>
 </section>
 <p id="status" role="status" aria-live="polite"></p>
 <script>
 (function(){
 'use strict';
 const el=(id)=>document.getElementById(id);
-const state={key:'',form:null,answers:{},index:0,busy:false,requestId:''};
+const state={key:'',form:null,answers:{},index:0,busy:false,requestId:'',historyCursor:null,fromHistory:false};
 const setStatus=(s,error=false)=>{const p=el('status');p.textContent=s;p.className=error?'error':'muted';};
-const show=(id)=>{for(const x of ['welcome','questions','results'])el(x).hidden=x!==id;};
+const show=(id)=>{for(const x of ['welcome','questions','results','history'])el(x).hidden=x!==id;};
 const newId=()=>crypto.randomUUID();
-function locked(v){state.busy=v;el('start').disabled=v||!el('consent').checked||!el('access').value;el('next').disabled=v;el('previous').disabled=v;}
+function locked(v){state.busy=v;el('start').disabled=v||!el('consent').checked||!el('access').value;el('historyOpen').disabled=v||!el('access').value;el('historyMore').disabled=v;el('next').disabled=v;el('previous').disabled=v;}
 async function api(url,method,body){
   const res=await fetch(url,{method,headers:{'X-UALP-Access-Key':state.key,'Content-Type':'application/json'},
     body:body?JSON.stringify(body):undefined,cache:'no-store'});
@@ -79,12 +89,79 @@ function render(){
   el('previous').disabled=state.index===0||state.busy;
   el('next').textContent=state.index===state.form.items.length-1?'Сохранить ответы':'Далее';
 }
+function home(){
+  if(state.busy)return;
+  state.key='';state.form=null;state.answers={};state.index=0;state.requestId='';
+  state.historyCursor=null;state.fromHistory=false;el('access').value='';
+  el('consent').checked=false;show('welcome');locked(false);setStatus('');
+}
+function displayResult(out){
+  show('results');el('scores').replaceChildren();
+  out.scores.forEach(s=>{
+    const li=document.createElement('li'),name=document.createElement('span'),value=document.createElement('span');
+    name.textContent=s.label||s.key;value.className='score';value.textContent=Number(s.mean).toFixed(2);
+    li.append(name,value);el('scores').append(li);
+  });
+  el('reference').textContent='Алгоритм: '+out.scoringAlgorithmVersion+' · ID: '+out.runId;
+  el('resultHistory').hidden=!state.fromHistory;
+}
+function prettyDate(iso){
+  const date=new Date(iso);
+  return Number.isNaN(date.getTime())?'Дата не определена':date.toLocaleString('ru-RU',{
+    year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'
+  });
+}
+async function loadHistory(reset){
+  const cursor=reset?null:state.historyCursor;
+  const url='/api/history'+(cursor?'?cursor='+encodeURIComponent(cursor):'');
+  const data=await api(url,'GET');
+  if(!Array.isArray(data.items))throw new Error('Неверный ответ истории');
+  const list=el('historyList');
+  if(reset)list.replaceChildren();
+  data.items.forEach(entry=>{
+    const li=document.createElement('li'),info=document.createElement('div');
+    const date=document.createElement('strong'),meta=document.createElement('p');
+    date.textContent=prettyDate(entry.completedAt);
+    meta.className='muted';meta.textContent='Версия формы: '+entry.formVersion+' · Завершён';
+    info.append(date,meta);
+    const open=document.createElement('button');open.type='button';open.textContent='Открыть';
+    open.setAttribute('aria-label','Открыть результат за '+date.textContent);
+    open.onclick=async()=>{
+      if(state.busy)return;
+      locked(true);setStatus('Загружаю сохранённый результат...');
+      try{
+        const out=await api('/api/runs/'+encodeURIComponent(entry.runId),'GET');
+        state.fromHistory=true;displayResult(out);setStatus('');
+      }catch(e){setStatus(e.message,true);}finally{locked(false);}
+    };
+    li.append(info,open);list.appendChild(li);
+  });
+  state.historyCursor=data.nextCursor||null;
+  el('historyMore').hidden=!state.historyCursor;
+  el('historyEmpty').hidden=list.children.length!==0;
+}
 el('access').oninput=()=>locked(state.busy);el('consent').onchange=()=>locked(state.busy);
+el('historyOpen').onclick=async()=>{
+  if(state.busy||!el('access').value)return;
+  state.key=el('access').value;locked(true);setStatus('Загружаю историю...');
+  try{
+    await loadHistory(true);el('access').value='';
+    state.fromHistory=false;show('history');setStatus('');
+  }catch(e){state.key='';setStatus(e.message,true);}finally{locked(false);}
+};
+el('historyMore').onclick=async()=>{
+  if(state.busy||!state.historyCursor)return;
+  locked(true);setStatus('Загружаю следующую страницу...');
+  try{await loadHistory(false);setStatus('');}catch(e){setStatus(e.message,true);}finally{locked(false);}
+};
+el('historyHome').onclick=home;
+el('resultHome').onclick=home;
+el('resultHistory').onclick=()=>{if(!state.busy&&state.fromHistory){show('history');setStatus('');}};
 el('start').onclick=async()=>{
   if(state.busy||!el('consent').checked||!el('access').value)return;
   state.key=el('access').value;locked(true);setStatus('Загружаю вопросы...');
   try{
-    state.form=await api('/api/forms/UALP_WV21_RU_LIKERT','GET');state.answers={};state.index=0;
+    state.form=await api('/api/forms/UALP_WV21_RU_LIKERT','GET');state.answers={};state.index=0;state.fromHistory=false;
     state.requestId=newId();el('access').value='';render();setStatus('');
   }catch(e){setStatus(e.message,true);}finally{locked(false);}
 };
@@ -99,14 +176,8 @@ el('next').onclick=async()=>{
   locked(true);setStatus('Записываю ответы и рассчитываю результат...');
   try{
     const out=await api('/api/runs','POST',{requestId:state.requestId,formKey:'UALP_WV21_RU_LIKERT',consent:true,answers});
-    show('results');el('scores').replaceChildren();
-    out.scores.forEach(s=>{
-      const li=document.createElement('li'),name=document.createElement('span'),value=document.createElement('span');
-      name.textContent=s.label||s.key;value.className='score';value.textContent=Number(s.mean).toFixed(2);
-      li.append(name,value);el('scores').append(li);
-    });
-    el('reference').textContent='Алгоритм: '+out.scoringAlgorithmVersion+' · ID: '+out.runId;
-    state.key='';setStatus('Сохранено. Новое прохождение потребует повторного входа.');
+    state.fromHistory=false;displayResult(out);
+    state.key='';setStatus('Сохранено. Для истории и нового теста требуется повторный вход.');
   }catch(e){setStatus(e.message,true);}finally{locked(false);}
 };
 })();
