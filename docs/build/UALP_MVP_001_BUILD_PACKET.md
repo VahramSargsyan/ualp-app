@@ -78,3 +78,33 @@ PAID_API_BUDGET: 0; EXECUTOR_PERMISSION: current assistant only.
 UNRESOLVED_DECISIONS: NONE for single-owner noncommercial TEST. Personal-account identity, privacy policy, psychometric standards and multi-user data partition remain separately gated.
 STOP_CONDITIONS: authentication or privacy regression, new migration/account policy need, paid infra, failed real DB check after focused repairs.
 AUTHORIZATION_END: MVP-003 TEST acceptance/review, then stop. No main/PROD promotion.
+
+
+## UALP-MVP-004 — RIASEC 60 source/licensing/scoring gate (2026-11-16)
+
+CAPABILITY_ID: UALP-MVP-004
+USER_RESULT: Add a second interest-assessment family to the owner-only UALP profile after correct source, adaptation and scoring gates; display six RIASEC interest scores separately from Work Values, not an averaged score.
+CURRENT_WORKFLOW_MODE: ECOSYSTEM_PLANNING (source/licensing/readiness), plus bounded synthetic-only scoring preparation. Actual instrument rollout and Neon import remain BLOCKED.
+RISK_CLASS: L3 — adapted licensed content + new durable catalog rows and changes to Work-Values-only runtime.
+BASE_COMMIT: b7b068e0a4db92e44014c46110e7fbf474040d9c (MVP-003 USER_ACCEPTED_TEST)
+OWNER_BRANCH: feature/ualp-mvp-004-riasec-source-gate
+OWNER / TEST: Vahram / separate Vercel Preview and Neon Free ualp_test only after gates.
+CANONICAL_SOURCE: owner-private UALP Assessment Library MASTER v0.7 / CANONICAL DB, Google Drive spreadsheet (reference, NOT runtime): https://docs.google.com/spreadsheets/d/1WDLyR3A1qwg-r8gcw28dd2hvm2F0pu9rw3ueblWc4-4/edit
+SOURCE_ENTITY: ASSESS-001; ASSESSVER-000001; FORM-000001; ONET_SHORT_60_DIGITAL; 60 source-indexed form memberships; SCALE-000001..000006; RESPSET-000001; RIASEC-SUM-v1.
+OFFICIAL_SOURCES: https://services.onetcenter.org/reference/mnm/ip/ip_questions ; https://www.onetcenter.org/license_tools.html ; https://www.onetcenter.org/license_toolsdev.html
+SOURCE_CONTENT_STATUS: Canonical 60 indexes and 10 items per R,I,A,S,E,C exist. Only sample original English prompts are stored as text in the source spreadsheet; most English prompts are external source-resolved references. The 60 Russian translation rows ITEMTR-000061..000120 are marked CULTURAL_ADAPTATION / NOT_REVIEWED / DRAFT, so they are not approved for a public deployment.
+SCORING_POLICY: Digital 60-item form has five response levels; official API transport 1..5, internal scores 0..4 (transport minus one). Exactly 10 distinct items per R/I/A/S/E/C; sum to [0,40] per scale, six independent raw scores. No reversed links, imputation, population norms, percentile, occupational matching or cross-instrument raw-score averaging. Paper 60-item form uses different binary scoring and must NOT be substituted.
+VALIDATION_STATUS: Library source coverage 60/60 PASS and 10x6 balance PASS. Library RU translation coverage 60/60 DRAFT; human semantic equivalence BLOCKED; RU response options 5/5 DRAFT and human review BLOCKED; RU release gate BLOCKED / NOT_RELEASED. Evidence for English original does not validate RU adaptation.
+LICENSE_POLICY: If the original English tool is genuinely copied verbatim, O*NET Tools CC BY-ND 4.0 is an available licence. Russian adaptation uses the O*NET Tools Developer License requiring source attribution, modification notice, licence link and validation study prior to modified-product release. AI-only semantic review is insufficient. Never put the item bank, responses or scoring keys in public GitHub. Do not imply USDOL/ETA endorses UALP.
+CURRENT_SCOPE: source/licence provenance audit; scoring invariants; pure Python synthetic-only scorer and deterministic tests. DO NOT enable RIASEC routes/UI or write to Neon in this stage.
+OUT_OF_SCOPE: releasing actual RU draft, creating user accounts, RIASEC profile interpretations, matching occupations, new paid API, PROD, unrelated modules or VBOS.
+SHARED_HOTSPOTS_FUTURE: webapp/main.py hardcodes ENABLED_FORM; fetch_form requires 21 items; compute_scores requires 42 links and 27 MEAN rules; UI fixed to Work Values. These contracts require a separately reviewed form-scoped runtime adapter, not silent reuse. History/profile also have Work Values-only navigation.
+SCHEMA_IMPACT_NOW: NONE. In a future authorized block, import only ADDITIVE versioned RIASEC catalog rows and keep existing Work Values IDs/statuses/relations intact.
+MIGRATION_PLAN_FUTURE: Obtain exact approved item manifest with checksums, TEST backup, dry-run on disposable PostgreSQL containing existing Work Values fixture, exact guarded additive catalog install, readback 60 items, five options, 60 links, six SUM rules; verify original run/21 responses/27 scores unchanged. Rollback must disable the new form and remove only unused new catalog records by exact ID in rehearsed TEST, or restore verified backup; no destructive reset.
+DEPENDENCIES: Human RU wording review; appropriate adapted-content validation; source confirmation for actual 60 prompts; accepted additive migration plan. No paid services.
+ACCEPTANCE_OF_PREP_STAGE: Synthetic 60 item answers, all six scales and 10 item links each; 0/40 and mixed numerical outputs; reject malformed, incomplete, duplicate or imbalanced inputs; no actual instrument content exposed; old tests pass.
+ACCEPTANCE_FUTURE: owner-only key-gated complete 60-question TEST, persisted six raw RIASEC scores independent of Work Values, history/profile compatibility, exact Neon/Vercel proof and owner phone acceptance. No unsupported high-stakes use.
+ROLLBACK_NOW: Revert only these source-gate preparation commits; MVP-003 and live Neon unchanged.
+UNRESOLVED_DECISIONS / BLOCKERS: (1) RU translation human review and validation not passed; (2) approved source import and migration are not yet implemented; (3) final language and internal pilot constraints require owner product decision if moving beyond source prep.
+PAID_API_BUDGET: 0; EXECUTOR_PERMISSION: current assistant only.
+AUTHORIZATION_END: report current source gate and stop. No PROD/main merge or unreviewed survey publication.
