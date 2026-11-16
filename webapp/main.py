@@ -16,7 +16,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, st
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-APP_VERSION = "0.1.0-postgres-test"
+APP_VERSION = "0.2.0-history-test"
 ENABLED_FORM = "UALP_WV21_RU_LIKERT"
 ROOT = Path(__file__).resolve().parent
 
