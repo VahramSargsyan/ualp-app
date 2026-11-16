@@ -379,15 +379,26 @@ el('login').onclick=async()=>{
   if(state.busy)return;
   if(!el('access').value){setStatus('Введи ключ доступа.',true);return;}
   locked(true);setStatus('Выполняю вход...');
+  let keyAccepted=false;
   try{
     const remembered=el('remember').checked;
     const loginResult=await api('/api/session','POST',{remember:remembered},el('access').value);
     if(loginResult.remembered!==remembered)throw new Error('Сервер не подтвердил режим запоминания.');
-    el('access').value='';
-    // Verify cookie acceptance instead of showing a successful but unusable login.
-    await api('/api/session','GET');state.authenticated=true;renderDraftResumes();
+    keyAccepted=true;
+    // Confirm the browser actually sends the issued cookie on the next same-host request.
+    await api('/api/session','GET');
+    state.authenticated=true;
+    el('access').value=''; // Clear the sensitive key only after cookie verification succeeded.
+    renderDraftResumes();
     setStatus(remembered?'Вход сохранён на 30 дней в этом браузере. Открывай этот же TEST-адрес.':'Вход выполнен без запоминания устройства.');
-  }catch(e){state.authenticated=false;setStatus(e.message+' Если авторизация исчезает после закрытия страницы, открой эту же ссылку напрямую в Chrome.',true);}finally{locked(false);}
+  }catch(e){
+    state.authenticated=false;
+    if(keyAccepted){
+      setStatus('Ключ ПРИНЯТ сервером, но браузер не подтвердил сессию (SESSION_COOKIE_CHECK_FAILED). Ключ остаётся в поле — повторно вводить его не нужно. Открой этот же TEST-адрес напрямую в Chrome; если проблема повторится, сообщи код ошибки без ключа.',true);
+    }else{
+      setStatus('Запрос входа не принят (LOGIN_REQUEST_FAILED). '+e.message+' Ключ остаётся в поле, не вводи его заново — проверь адрес TEST и нажми «Войти» ещё раз.',true);
+    }
+  }finally{locked(false);}
 };
 el('access').onkeydown=(e)=>{if(e.key==='Enter')el('login').click();};
 el('logout').onclick=async()=>{
