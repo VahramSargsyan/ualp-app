@@ -118,6 +118,11 @@ def counts(url):
 
 
 def test_01_exact_catalog_and_private_boundaries(api):
+    empty_profile = api.get("/api/profile", headers=headers())
+    assert empty_profile.status_code == 200
+    assert empty_profile.json()["methods"] == []
+    assert empty_profile.json()["methodCount"] == 0
+    assert empty_profile.json()["completedRuns"] == 0
     response = api.get(f"/api/forms/{ENABLED_FORM}", headers=headers())
     assert response.status_code == 200, response.text
     body = response.json()
