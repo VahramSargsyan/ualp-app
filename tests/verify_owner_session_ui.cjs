@@ -46,8 +46,46 @@ const assert=require('node:assert/strict');
  await page.route('**/api/profile',route=>route.fulfill({json:{methods:[],methodCount:0,completedRuns:0,hasMoreMethods:false}}));
  await page.route('**/api/forms/*',route=>route.fulfill({json:{formKey:'ONET_SHORT_60_DIGITAL',items:Array.from({length:60},(_,i)=>({itemId:'synthetic-'+i,prompt:'Synthetic item '+i})),options:[{optionKey:'V1',label:'Synthetic answer'}]}}));
  await page.route('**/api/runs',route=>route.fulfill({status:201,json:{scoringAlgorithmVersion:'RIASEC-SUM-v1',runId:'synthetic-run',scores:['R','I','A','S','E','C'].map(key=>({key,mean:10}))}}));
+ // Synthetic history responses only; session endpoint still uses real local HTTPS backend.
+ const historyRows=[
+  {runId:'synthetic-history-wv',formKey:'UALP_WV21_RU_LIKERT',
+   formVersion:'synthetic-work-values',status:'COMPLETED',completedAt:'2026-11-15T11:00:00Z'},
+  {runId:'synthetic-history-riasec',formKey:'ONET_SHORT_60_DIGITAL',
+   formVersion:'synthetic-riasec',status:'COMPLETED',completedAt:'2026-11-16T11:00:00Z'}
+ ];
+ await page.route('**/api/history**',route=>{
+  const u=new URL(route.request().url()),filter=u.searchParams.get('formKey');
+  assert(['ALL','UALP_WV21_RU_LIKERT','ONET_SHORT_60_DIGITAL'].includes(filter));
+  const entries=historyRows.filter(x=>filter==='ALL'||x.formKey===filter);
+  return route.fulfill({json:{formKeyFilter:filter,items:entries,pageSize:10,nextCursor:null}});
+ });
+ await page.route('**/api/runs/synthetic-history-*',route=>{
+  const isRiasec=route.request().url().endsWith('synthetic-history-riasec');
+  return route.fulfill({json:{
+    runId:isRiasec?'synthetic-history-riasec':'synthetic-history-wv',
+    scoringAlgorithmVersion:isRiasec?'RIASEC-SUM-v1':'WORKVALUES-MEAN-v1',
+    scores:['R','I','A','S','E','C'].map(k=>({key:k,mean:isRiasec?20:2}))
+  }});
+ });
  await page.goto('https://127.0.0.1:8843');
  await page.locator('#signedIn').waitFor({state:'visible'});
+ await page.locator('#historyOpen').click();
+ await page.locator('#history').waitFor({state:'visible'});
+ await page.waitForFunction(()=>document.querySelectorAll('#historyList li').length===2);
+ assert((await page.locator('#historyList').innerText()).includes('RIASEC'));
+ assert((await page.locator('#historyList').innerText()).includes('Work Values'));
+ await page.locator('#historyFilter').selectOption('ONET_SHORT_60_DIGITAL');
+ await page.waitForFunction(()=>document.querySelectorAll('#historyList li').length===1&&
+   document.querySelector('#historyList').textContent.includes('RIASEC'));
+ await page.locator('#historyList li button').click();
+ await page.locator('#results').waitFor({state:'visible'});
+ assert.match(await page.locator('#resultExplain').innerText(),/Шесть независимых сумм интересов/);
+ await page.locator('#resultHistory').click();
+ await page.locator('#history').waitFor({state:'visible'});
+ await page.locator('#historyFilter').selectOption('UALP_WV21_RU_LIKERT');
+ await page.waitForFunction(()=>document.querySelectorAll('#historyList li').length===1&&
+   document.querySelector('#historyList').textContent.includes('Work Values'));
+ await page.locator('#historyHome').click();
  await page.locator('#profileOpen').click();await page.locator('#profile').waitFor({state:'visible'});
  await page.locator('#profileHome').click();
  assert(await page.locator('#signedIn').isVisible());
@@ -76,6 +114,6 @@ const assert=require('node:assert/strict');
  await page.locator('#logout').click();
  await page.locator('#loginFields').waitFor({state:'visible'});
  assert.deepEqual(errors,[]);
- console.log('PASS: rejected key vs failed session cookie, key not cleared on failure, default 30-day login, browser reopen, profile, logout, shared-device opt-out; local HTTPS synthetic');
+ console.log('PASS: rejected key vs failed cookie, 30-day login, cross-form history filters + saved result reopen, profile, logout, opt-out; local HTTPS synthetic');
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
