@@ -151,6 +151,47 @@ def validate_private_manifest(manifest: Any, *, expected_digest: str | None = No
     )
 
 
+def verify_private_postgres_catalog(
+    form_row, items, options, scales, source_scales, expected_digest,
+) -> ManifestReceipt:
+    """Compute a private source lock from stored catalog without returning text.
+
+    Caller enforces database host, owner authorization and SQL link/rule integrity.
+    This helper has no database/network access and is not a public API serializer.
+    """
+    private_manifest = {
+        "schemaVersion": SCHEMA_VERSION,
+        "formKey": FORM_KEY,
+        "formVersion": form_row["form_version"],
+        "sourceFormId": form_row["form_id"],
+        "locale": "ru",
+        "purpose": "VOLUNTARY_SELF_EXPLORATION",
+        "distributionScope": PRIVATE_SCOPE,
+        "validationStatus": DRAFT_STATUS,
+        "algorithmVersion": ALGORITHM_VERSION,
+        "licenseUrl": LICENSE_URL,
+        "items": [
+            {"itemId": x["item_id"], "sourceIndex": x["display_order"],
+             "prompt": x["prompt"], "scaleKey": source_scales[x["item_id"]],
+             "reviewStatus": DRAFT_STATUS}
+            for x in items
+        ],
+        "options": [
+            {"optionKey": x["option_key"], "label": x["label"],
+             "scoreValue": int(x["score_value"]),
+             "reviewStatus": DRAFT_STATUS}
+            for x in options
+        ],
+        "scales": [
+            {"scaleKey": x["scale_key"], "label": x["label"]}
+            for x in scales
+        ],
+    }
+    return validate_private_manifest(
+        private_manifest, expected_digest=expected_digest
+    )
+
+
 def _reject_duplicate_json_keys(pairs: list[tuple[str, object]]) -> dict:
     value = {}
     for key, item in pairs:
