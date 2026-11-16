@@ -22,6 +22,7 @@ progress{width:100%;height:12px;accent-color:#245fac}
 .error{background:#ffecec;color:#9c2424;padding:14px;border-radius:10px;margin:12px 0}
 .scores{list-style:none;padding:0}.scores li{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e6eaf1;padding:11px 0}
 .score{font-weight:700;font-variant-numeric:tabular-nums}
+.profile-metrics{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}.profile-metrics span{background:#eef3fc;border-radius:10px;padding:9px 13px;font-size:.91rem}.profile-method{border:1px solid #dce3ed;border-radius:12px;padding:15px;margin:15px 0}.profile-method h3{font-size:1.08rem;margin:0 0 7px}.profile-method .muted{margin:5px 0 12px}.profile-row{display:grid;grid-template-columns:minmax(100px,1fr) 85px 45px;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #eef1f5}.profile-row meter{width:100%;height:15px}.profile-pending{border-top:1px solid #e6eaf1;padding-top:10px;margin-top:14px}
 .history-list{list-style:none;margin:16px 0;padding:0}.history-list li{border-bottom:1px solid #e6eaf1;padding:14px 0;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.history-list .muted{margin:6px 0 0}button:focus-visible,input:focus-visible{outline:3px solid #ffb548;outline-offset:2px}
 [hidden]{display:none!important}
 </style></head>
@@ -35,14 +36,22 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <input id="access" type="password" autocomplete="off" placeholder="Введите приватный ключ">
 <p><label><input type="checkbox" id="consent"> Я понимаю экспериментальный статус теста и согласен сохранить мои ответы в TEST.</label></p>
 <p class="muted">Посмотреть предыдущие прохождения можно без нового теста: достаточно ключа доступа.</p>
-<div class="actions"><button id="historyOpen" disabled>История результатов</button><button class="primary" id="start" disabled>Начать тест</button></div>
+<div class="actions"><button id="profileOpen" disabled>Мой профиль</button><button id="historyOpen" disabled>История результатов</button><button class="primary" id="start" disabled>Начать тест</button></div>
+</section>
+<section class="card" id="profile" hidden>
+<h2>Мой профиль — личный TEST</h2>
+<p class="muted">Профиль собирается из сохранённых прохождений. Это исследовательские сырые показатели: их нельзя использовать для найма, диагнозов или сравнивать между разными методиками.</p>
+<div class="profile-metrics" id="profileSummary" aria-live="polite"></div>
+<div id="profileMethods"></div>
+<p class="muted profile-pending" id="profilePending"></p>
+<div class="actions"><button id="profileHome">На главную</button><button id="profileHistory">История Work Values</button></div>
 </section>
 <section class="card" id="history" hidden>
 <h2>История прохождений</h2>
 <p class="muted">Сохранённые прохождения Work Values. Отображаются только даты и версия. Нажми «Открыть», чтобы увидеть ранее рассчитанные шесть показателей.</p>
 <ul id="historyList" class="history-list"></ul>
 <p id="historyEmpty" class="muted" hidden>Сохранённых прохождений пока нет.</p>
-<div class="actions"><button id="historyHome">На главную</button><button id="historyMore" hidden>Показать ещё</button></div>
+<div class="actions"><button id="historyHome">На главную</button><button id="historyProfile" hidden>К профилю</button><button id="historyMore" hidden>Показать ещё</button></div>
 </section>
 <section class="card" id="questions" hidden>
 <p class="muted" id="position"></p><progress id="progress" value="0" max="21"></progress>
@@ -53,18 +62,18 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <h2>Результат сохранён в PostgreSQL</h2>
 <p class="muted">Ниже указаны только средние значения приоритетов по шести группам (0–4), без норм и рекомендаций.</p>
 <ul id="scores" class="scores"></ul><p class="muted" id="reference"></p>
-<div class="actions"><button id="resultHome">На главную</button><button id="resultHistory" hidden>К истории</button></div>
+<div class="actions"><button id="resultHome">На главную</button><button id="resultHistory" hidden>К истории</button><button id="resultProfile" hidden>К профилю</button></div>
 </section>
 <p id="status" role="status" aria-live="polite"></p>
 <script>
 (function(){
 'use strict';
 const el=(id)=>document.getElementById(id);
-const state={key:'',form:null,answers:{},index:0,busy:false,requestId:'',historyCursor:null,fromHistory:false};
+const state={key:'',form:null,answers:{},index:0,busy:false,requestId:'',historyCursor:null,fromHistory:false,fromProfile:false,historyFromProfile:false};
 const setStatus=(s,error=false)=>{const p=el('status');p.textContent=s;p.className=error?'error':'muted';};
-const show=(id)=>{for(const x of ['welcome','questions','results','history'])el(x).hidden=x!==id;};
+const show=(id)=>{for(const x of ['welcome','questions','results','history','profile'])el(x).hidden=x!==id;};
 const newId=()=>crypto.randomUUID();
-function locked(v){state.busy=v;el('start').disabled=v||!el('consent').checked||!el('access').value;el('historyOpen').disabled=v||!el('access').value;el('historyMore').disabled=v;el('next').disabled=v;el('previous').disabled=v;}
+function locked(v){state.busy=v;el('start').disabled=v||!el('consent').checked||!el('access').value;el('historyOpen').disabled=v||!el('access').value;el('profileOpen').disabled=v||!el('access').value;el('historyMore').disabled=v;el('next').disabled=v;el('previous').disabled=v;}
 async function api(url,method,body){
   const res=await fetch(url,{method,headers:{'X-UALP-Access-Key':state.key,'Content-Type':'application/json'},
     body:body?JSON.stringify(body):undefined,cache:'no-store'});
@@ -92,7 +101,8 @@ function render(){
 function home(){
   if(state.busy)return;
   state.key='';state.form=null;state.answers={};state.index=0;state.requestId='';
-  state.historyCursor=null;state.fromHistory=false;el('access').value='';
+  state.historyCursor=null;state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
+  el('profileMethods').replaceChildren();el('profileSummary').replaceChildren();el('historyList').replaceChildren();el('scores').replaceChildren();el('reference').textContent='';el('access').value='';
   el('consent').checked=false;show('welcome');locked(false);setStatus('');
 }
 function displayResult(out){
@@ -104,6 +114,7 @@ function displayResult(out){
   });
   el('reference').textContent='Алгоритм: '+out.scoringAlgorithmVersion+' · ID: '+out.runId;
   el('resultHistory').hidden=!state.fromHistory;
+  el('resultProfile').hidden=!state.fromProfile;
 }
 function prettyDate(iso){
   const date=new Date(iso);
@@ -140,13 +151,100 @@ async function loadHistory(reset){
   el('historyMore').hidden=!state.historyCursor;
   el('historyEmpty').hidden=list.children.length!==0;
 }
+function showProfile(data){
+  if(!Array.isArray(data.methods))throw new Error('Неверный формат профиля');
+  const summary=el('profileSummary');summary.replaceChildren();
+  const methods=document.createElement('span');methods.textContent='Методик пройдено: '+data.methodCount;
+  const runs=document.createElement('span');runs.textContent='Всего прохождений: '+data.completedRuns;
+  summary.append(methods,runs);
+  const container=el('profileMethods');container.replaceChildren();
+  if(!data.methods.length){
+    const empty=document.createElement('p');empty.className='muted';
+    empty.textContent='Завершённых тестов пока нет. Результаты появятся после первого сохранения.';
+    container.appendChild(empty);
+  }
+  const names={
+    UALP_WV21_RU_LIKERT:'Профессиональные ценности (Work Values)',
+    ONET_SHORT_60_DIGITAL:'Интересы (RIASEC)',
+    ICAR16_DIGITAL:'Когнитивные задания (ICAR-16)'
+  };
+  data.methods.forEach(m=>{
+    const box=document.createElement('article');box.className='profile-method';
+    const heading=document.createElement('h3');heading.textContent=names[m.formKey]||m.formKey;
+    const meta=document.createElement('p');meta.className='muted';
+    meta.textContent='Прохождений: '+m.completedRuns+' · Последнее: '+prettyDate(m.latestAt)+' · Методика: '+m.validationStatus;
+    box.append(heading,meta);
+    if(m.parentScores.length===0){
+      const none=document.createElement('p');none.className='muted';
+      none.textContent='Нет сохранённых основных шкал для этой методики.';
+      box.append(none);
+    }
+    m.parentScores.forEach(score=>{
+      const line=document.createElement('div');line.className='profile-row';
+      const label=document.createElement('span');label.textContent=score.label||score.key;
+      const bar=document.createElement('div');
+      if(m.formKey==='UALP_WV21_RU_LIKERT'){
+        const meter=document.createElement('meter');
+        meter.min=0;meter.max=4;meter.value=Math.max(0,Math.min(4,Number(score.mean)));
+        meter.setAttribute('aria-label',label.textContent+' по шкале от 0 до 4');
+        bar.append(meter);
+      }
+      const val=document.createElement('strong');val.className='score';val.textContent=Number(score.mean).toFixed(2);
+      line.append(label,bar,val);box.append(line);
+    });
+    if(m.formKey==='UALP_WV21_RU_LIKERT'){
+      const open=document.createElement('button');
+      open.textContent='Открыть сохранённый результат';
+      open.type='button';
+      open.onclick=async()=>{
+        if(state.busy)return;
+        locked(true);setStatus('Открываю результат...');
+        try{
+          const out=await api('/api/runs/'+encodeURIComponent(m.latestRunId),'GET');
+          state.fromHistory=false;state.fromProfile=true;displayResult(out);setStatus('');
+        }catch(e){setStatus(e.message,true);}finally{locked(false);}
+      };
+      const actions=document.createElement('div');actions.className='actions';actions.append(open);box.append(actions);
+    }
+    container.append(box);
+  });
+  const seen=new Set(data.methods.map(m=>m.formKey));
+  const pending=[];
+  if(!seen.has('ONET_SHORT_60_DIGITAL'))pending.push('RIASEC');
+  if(!seen.has('ICAR16_DIGITAL'))pending.push('ICAR-16');
+  el('profilePending').textContent=pending.length
+    ?'Ещё не подключены или не пройдены: '+pending.join(', ')+'. Их результаты не рассчитывались.'
+    :'Другие методики появятся только после отдельного подтверждения и прохождения.';
+  if(data.hasMoreMethods)el('profilePending').textContent+=' Показаны первые 12 методик.';
+  show('profile');
+}
 el('access').oninput=()=>locked(state.busy);el('consent').onchange=()=>locked(state.busy);
+el('profileOpen').onclick=async()=>{
+  if(state.busy||!el('access').value)return;
+  state.key=el('access').value;locked(true);setStatus('Собираю сохранённый профиль...');
+  try{
+    const data=await api('/api/profile','GET');
+    showProfile(data);el('access').value='';state.fromProfile=true;setStatus('');
+  }catch(e){state.key='';setStatus(e.message,true);}finally{locked(false);}
+};
+el('profileHome').onclick=home;
+el('profileHistory').onclick=async()=>{
+  if(state.busy)return;
+  locked(true);setStatus('Открываю историю...');
+  try{
+    await loadHistory(true);state.historyFromProfile=true;
+    el('historyProfile').hidden=false;show('history');setStatus('');
+  }catch(e){setStatus(e.message,true);}finally{locked(false);}
+};
+el('historyProfile').onclick=()=>{if(!state.busy&&state.historyFromProfile){show('profile');setStatus('');}};
+el('resultProfile').onclick=()=>{if(!state.busy&&state.fromProfile){show('profile');setStatus('');}};
 el('historyOpen').onclick=async()=>{
   if(state.busy||!el('access').value)return;
   state.key=el('access').value;locked(true);setStatus('Загружаю историю...');
   try{
     await loadHistory(true);el('access').value='';
-    state.fromHistory=false;show('history');setStatus('');
+    state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
+    el('historyProfile').hidden=true;show('history');setStatus('');
   }catch(e){state.key='';setStatus(e.message,true);}finally{locked(false);}
 };
 el('historyMore').onclick=async()=>{
@@ -161,7 +259,7 @@ el('start').onclick=async()=>{
   if(state.busy||!el('consent').checked||!el('access').value)return;
   state.key=el('access').value;locked(true);setStatus('Загружаю вопросы...');
   try{
-    state.form=await api('/api/forms/UALP_WV21_RU_LIKERT','GET');state.answers={};state.index=0;state.fromHistory=false;
+    state.form=await api('/api/forms/UALP_WV21_RU_LIKERT','GET');state.answers={};state.index=0;state.fromHistory=false;state.fromProfile=false;
     state.requestId=newId();el('access').value='';render();setStatus('');
   }catch(e){setStatus(e.message,true);}finally{locked(false);}
 };
@@ -176,7 +274,7 @@ el('next').onclick=async()=>{
   locked(true);setStatus('Записываю ответы и рассчитываю результат...');
   try{
     const out=await api('/api/runs','POST',{requestId:state.requestId,formKey:'UALP_WV21_RU_LIKERT',consent:true,answers});
-    state.fromHistory=false;displayResult(out);
+    state.fromHistory=false;state.fromProfile=false;displayResult(out);
     state.key='';setStatus('Сохранено. Для истории и нового теста требуется повторный вход.');
   }catch(e){setStatus(e.message,true);}finally{locked(false);}
 };
