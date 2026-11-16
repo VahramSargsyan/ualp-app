@@ -97,6 +97,15 @@ const RIASEC='ONET_SHORT_60_DIGITAL', WV='UALP_WV21_RU_LIKERT';
  await page.getByRole('button',{name:'Продолжить Work Values'}).click();
  assert.match(await page.locator('#status').innerText(),/Версия вопросов изменилась/);
  assert.equal(await page.evaluate(k=>localStorage.getItem(k),PREFIX+WV),null);
+ // Expired draft is removed lazily when the authenticated owner next opens the app.
+ await page.evaluate(({key,draft})=>{
+  draft.savedAt=Date.now()-8*24*60*60*1000;
+  draft.expiresAt=Date.now()-1;
+  localStorage.setItem(key,JSON.stringify(draft));
+ },{key:PREFIX+RIASEC,draft:riasecDraft});
+ await page.reload();
+ await page.locator('#signedIn').waitFor({state:'visible'});
+ assert.equal(await page.evaluate(k=>localStorage.getItem(k),PREFIX+RIASEC),null);
  // Unsubmitted opt-in drafts must be wiped at logout, never stored in the session cookie.
  await page.locator('#start').click();
  await page.locator('#options input[value="V2"]').check();
