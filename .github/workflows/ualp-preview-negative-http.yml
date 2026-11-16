@@ -16,11 +16,21 @@ jobs:
         run: |
           set -euo pipefail
           BASE='https://ualp-app-git-feature-ualp-mvp-001-vercel-test-vahram-sargsyan.vercel.app'
-          curl --fail --silent --show-error --max-time 25 "$BASE/health" > /tmp/ualp-health.json
+          HTTP_STATUS=$(curl --silent --show-error --max-time 25 -D /tmp/ualp-health-headers -o /tmp/ualp-health.json -w '%{http_code}' "$BASE/health")
+          echo "GET /health HTTP $HTTP_STATUS"
+          grep -i "^content-type:" /tmp/ualp-health-headers | tail -1 || true
+          test "$HTTP_STATUS" = "200" || { echo "Expected 200"; exit 1; }
           python3 - <<'PY'
-          import json
+          import json,re
+          from json import JSONDecodeError
           with open("/tmp/ualp-health.json", encoding="utf-8") as f:
-              response = json.load(f)
+              body = f.read()
+          try:
+              response = json.loads(body)
+          except JSONDecodeError:
+              title = re.search(r"<title[^>]*>([^<]{0,180})</title>",body,re.I)
+              print("NOT_API_JSON; HTML title:", title.group(1) if title else "(no title)")
+              raise AssertionError("/health returned non-JSON (Vercel protection or routing problem)")
           assert response["status"] == "TEST_ONLY", response
           assert response["database"] == "PostgreSQL", response
           assert response["version"] == "0.1.0-postgres-test", response
