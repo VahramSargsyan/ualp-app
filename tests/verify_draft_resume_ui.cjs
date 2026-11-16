@@ -108,8 +108,9 @@ const RIASEC='ONET_SHORT_60_DIGITAL', WV='UALP_WV21_RU_LIKERT';
  await page.locator('#signedIn').waitFor({state:'visible'});
  assert.equal(await page.evaluate(k=>localStorage.getItem(k),PREFIX+RIASEC),null);
  // Unsubmitted opt-in drafts must be wiped at logout, never stored in the session cookie.
- // A full reload resets opt-in; the owner must explicitly choose it again.
+ // A full reload resets both the optional draft preference and server submission consent.
  await page.locator('#draftOptIn').check();
+ await page.locator('#consent').check();
  await page.locator('#start').click();
  await page.locator('#options input[value="V2"]').check();
  await page.locator('#questionHome').click();
