@@ -381,3 +381,21 @@ ACCEPTANCE: After report generation and leaving Profile via History or Result, r
 ROLLBACK: revert small privacy patch to exact b6c75183c36e5a3eccf792f626c6f5d2e7981628; not a DB migration. Existing APK loads hosted UI from same origin; no reinstall needed.
 PAID_API_BUDGET: 0. EXECUTOR_PERMISSION: current assistant only. REPAIR_LIMIT: 2 focused cycles. STOP_CONDITIONS: validation/privacy failure, unexpected schema impact, unavailable required CI, paid resource, PROD boundary.
 AUTHORIZATION_END: TEST technical receipt; manual acceptance of both prior features still pending, no automatic third new product feature.
+
+
+### MVP-011.1 — UALP batched acceptance QA / profile aggregate integrity (2026-11-17)
+
+CAPABILITY_ID: UALP-MVP-011.1 / BATCHED_TEST_QA_PROFILE_TOTALS
+USER_RESULT: Owner requested fewer interruptions ("Мое участие снизить до минимума. Пусть наберётся потом протестом"). Existing pending MVP-010/MVP-011 and this focused QA hardening are grouped into one later mobile UAT. A confirmation is not required after each sub-step; this does NOT convert pending features into USER_ACCEPTED or authorize indefinite next development.
+WORKFLOW_MODE: PATCH_FIX / QA hardening of existing route; RISK_CLASS: L1 source validation + L2 mobile private-results QA.
+BASE_COMMIT / OWNER_BRANCH: e0591f0b0b931022e69c114b75c353f6e9f18897 / feature/ualp-mvp-006-draft-resume-test; existing Draft PR #7 / stable fixed Vercel TEST hostname.
+CANONICAL: Read-only authorized /api/profile from real saved PostgreSQL completions, with methodCount == displayed method list length, completedRuns == sum(method completedRuns). This is already backend behavior, so client must fail closed on inconsistency rather than displaying a fabricated state. Never change source data to make the check pass.
+SCOPE / HOTSPOTS: webapp/index.html readRoadmapProgress() consistency check only; tests/verify_owner_session_ui.cjs adds mismatched aggregate negative checks; docs/qa/UALP_BATCH_ACCEPTANCE_TEST_20261117.md records one later owner-phone scenario. No new product screen or score interpretation, no new API/schema/Android native changes.
+OUT_OF_SCOPE: career scoring or recommendations, ICAR-16 catalog, public survey, data edits, PROD, paid tools and additional executors. Further blocks must have their own scope and risk checks; owner batched UAT does not imply blanket permission.
+SCHEMA_IMPACT / MIGRATION: NONE; rollback to exact e0591f0b0b931022e69c114b75c353f6e9f18897; no data migration, no files copied to device.
+ACCEPTANCE: synthetic Chromium rejects a profile whose completedRuns or methodCount contradicts returned saved methods while a valid/empty owner profile still renders; all earlier cookie/Home/profile/report/history/21/60 draft tests PASS; real ephemeral PostgreSQL existing integration PASS, Vercel commit SUCCESS. Owner phone UAT explicitly DEFERRED_UNACCEPTED.
+REQUIRED_EVIDENCE: commit SHA, Python/JS + Chromium CI, isolated real PostgreSQL, Vercel Preview exact source, remaining NOT_RUN; Android build if CI re-runs (native device NOT_RUN).
+TEST_BUNDLE: MVP-010/010.1 owner report + MVP-011 route + MVP-011.1 aggregate validation; one short combined check after technical TEST checkpoints; see docs/qa/UALP_BATCH_ACCEPTANCE_TEST_20261117.md. Keep other user-acceptance gaps accurately flagged, no fabricated pass.
+EXECUTOR_PERMISSION: current assistant, no Codex. PAID_API_BUDGET: 0. REPAIR_LIMIT: 2 evidence-based focused cycles.
+STOP_CONDITIONS: source mismatch, broken owner session/cookie, invalid profile leak, missing essential TEST, PROD/business decisions/paid dependency.
+AUTHORIZATION_END: verified TEST checkpoint with batched owner acceptance deferred, STOP. Does not authorize continuing asynchronously after this turn.
