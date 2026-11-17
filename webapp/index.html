@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- index.html | UALP 0.4.8-result-provenance-test -->
+<!-- index.html | UALP 0.4.9-result-scale-bars-test -->
 <html lang="ru">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>UALP — PostgreSQL TEST</title>
@@ -22,7 +22,12 @@ button:disabled{opacity:.5;cursor:default}
 .actions{display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap;margin-top:20px}
 progress{width:100%;height:12px;accent-color:#245fac}
 .error{background:#ffecec;color:#9c2424;padding:14px;border-radius:10px;margin:12px 0}
-.scores{list-style:none;padding:0}.scores li{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e6eaf1;padding:11px 0}
+.scores{list-style:none;padding:0}
+.scores li{display:block;border-bottom:1px solid #e6eaf1;padding:11px 0}
+.result-scale-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.result-scale-heading span:first-child{overflow-wrap:anywhere;min-width:0}
+.result-scale-meter{display:block;width:100%;height:17px;margin-top:8px}
+.result-scale-caption{font-size:.86rem;color:#64758a;line-height:1.45}
 .score{font-weight:700;font-variant-numeric:tabular-nums}
 .profile-metrics{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}.profile-metrics span{background:#eef3fc;border-radius:10px;padding:9px 13px;font-size:.91rem}.profile-method{border:1px solid #dce3ed;border-radius:12px;padding:15px;margin:15px 0}.profile-method h3{font-size:1.08rem;margin:0 0 7px}.profile-method .muted{margin:5px 0 12px}.profile-row{display:grid;grid-template-columns:minmax(100px,1fr) 85px 45px;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #eef1f5}.profile-row meter{width:100%;height:15px}.profile-pending{border-top:1px solid #e6eaf1;padding-top:10px;margin-top:14px}
 .compare-row{display:grid;grid-template-columns:minmax(110px,1fr) 55px 55px 62px;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid #e6eaf1}
@@ -126,11 +131,12 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <p class="muted" id="resultExplain">Ниже указаны только средние значения приоритетов по шести группам (0–4), без норм и рекомендаций.</p>
 <p class="muted" id="resultProvenance"></p>
 <p class="muted" id="resultSource" hidden>RIASEC: O*NET Interest Profiler by USDOL/ETA, изменённый русский перевод. <a href="https://www.onetcenter.org/license_toolsdev.html" rel="noopener noreferrer" target="_blank">Лицензия O*NET Tools Developer License</a>. Методика не валидирована для UALP; одобрения USDOL/ETA нет.</p>
+<p id="resultScaleNote" class="result-scale-caption"></p>
 <ul id="scores" class="scores"></ul><p class="muted" id="reference"></p>
 <div class="actions"><button id="resultHome">На главную</button><button id="resultHistory" hidden>К истории</button><button id="resultProfile" hidden>К профилю</button></div>
 </section>
 <p id="status" role="status" aria-live="polite"></p>
-<p class="muted" id="buildVersion">UALP 0.4.8-result-provenance-test · TEST · мобильный/настольный веб</p>
+<p class="muted" id="buildVersion">UALP 0.4.9-result-scale-bars-test · TEST · мобильный/настольный веб</p>
 <script>
 (function(){
 'use strict';
@@ -370,7 +376,7 @@ function home(){
   clearReport();
   state.form=null;state.answers={};state.index=0;state.requestId='';state.draftEnabled=false;
   state.historyCursor=null;state.historySelections=[];state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
-  el('profileMethods').replaceChildren();el('profileSummary').replaceChildren();el('historyList').replaceChildren();el('scores').replaceChildren();el('reference').textContent='';el('resultProvenance').textContent='';el('access').value='';
+  el('profileMethods').replaceChildren();el('profileSummary').replaceChildren();el('historyList').replaceChildren();el('scores').replaceChildren();el('reference').textContent='';el('resultScaleNote').textContent='';el('resultProvenance').textContent='';el('access').value='';
   show('welcome');locked(false);renderDraftResumes();renderSelection();setStatus('');
 }
 function displayResult(out){
@@ -399,11 +405,34 @@ function displayResult(out){
     ?'Шесть независимых сумм интересов от 0 до 40. Экспериментальный русский перевод, без норм, диагнозов или рекомендаций.'
     :'Ниже указаны только средние значения приоритетов по шести группам (0–4), без норм и рекомендаций.';
   el('resultSource').hidden=!isRiasec;
-  out.scores.forEach(s=>{
-    const li=document.createElement('li'),name=document.createElement('span'),value=document.createElement('span');
-    name.textContent=s.label||s.key;value.className='score';
-    value.textContent=isRiasec?(Math.round(Number(s.mean))+' / 40'):Number(s.mean).toFixed(2);
-    li.append(name,value);el('scores').append(li);
+  const max=isRiasec?40:4;
+  const scales=new Set();
+  const validated=out.scores.map(item=>{
+    const key=item&&typeof item.key==='string'?item.key:'';
+    const label=item&&typeof item.label==='string'&&item.label.trim()
+      ?item.label:key;
+    const value=Number(item?.mean);
+    if(!key||key.length>80||!label||label.length>160||scales.has(key)||
+       !Number.isFinite(value)||value<0||value>max||
+       (isRiasec&&!Number.isInteger(value)))
+      throw Error('Несовместимые значения сохранённых шкал');
+    scales.add(key);
+    return {label,value};
+  });
+  el('resultScaleNote').textContent='Длина полосы показывает только положение сырого балла на шкале 0–'+
+    max+'. Это не процент навыка, норматив или сопоставление разных методик.';
+  const host=el('scores');host.replaceChildren();
+  validated.forEach(item=>{
+    const li=document.createElement('li');
+    const heading=document.createElement('div');heading.className='result-scale-heading';
+    const name=document.createElement('span'),score=document.createElement('strong');
+    name.textContent=item.label;score.className='score';
+    score.textContent=isRiasec?item.value+' / 40':item.value.toFixed(2)+' / 4';
+    heading.append(name,score);
+    const meter=document.createElement('meter');meter.className='result-scale-meter';
+    meter.min=0;meter.max=max;meter.value=item.value;
+    meter.setAttribute('aria-label',item.label+': '+score.textContent);
+    li.append(heading,meter);host.append(li);
   });
   el('reference').textContent='Алгоритм: '+out.scoringAlgorithmVersion+' · ID: '+out.runId;
   el('resultHistory').hidden=!state.fromHistory;
