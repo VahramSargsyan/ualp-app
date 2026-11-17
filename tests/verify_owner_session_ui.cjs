@@ -91,7 +91,7 @@ const assert=require('node:assert/strict');
   const entries=historyRows.filter(x=>filter==='ALL'||x.formKey===filter);
   return route.fulfill({json:{formKeyFilter:filter,items:entries,pageSize:10,nextCursor:null}});
  });
- let tamperResultFormKey=false;
+ let tamperResultFormKey=false,tamperScaleRange=false;
  await page.route('**/api/runs/synthetic-history-*',route=>{
   const runId=route.request().url().split('/').pop();
   const isRiasec=runId==='synthetic-history-riasec';
@@ -108,7 +108,7 @@ const assert=require('node:assert/strict');
     scores:['R','I','A','S','E','C'].map(k=>({
       scaleId:'synthetic-scale-'+k,key:k,label:'Synthetic scale '+k,
       answered:isRiasec?10:3,
-      mean:isRiasec?20:isNewest?2.75:2.25
+      mean:isRiasec?(tamperScaleRange?41:20):isNewest?2.75:2.25
     }))
   }});
  });
@@ -130,6 +130,10 @@ const assert=require('node:assert/strict');
  assert.match(provenance,/synthetic-riasec/);
  assert.match(provenance,/NOT_REVIEWED/);
  assert.match(provenance,/записано:/);
+ assert.match(await page.locator('#resultScaleNote').innerText(),/не процент навыка/);
+ assert.equal(await page.locator('#scores meter').count(),6);
+ assert.deepEqual(await page.locator('#scores meter').evaluateAll(nodes=>nodes.map(n=>[n.max,n.value])),
+   Array.from({length:6},()=>[40,20]));
  await page.locator('#resultHistory').click();
  await page.locator('#history').waitFor({state:'visible'});
  // A corrupted/mismatched stored-result passport must not be shown as a real score.
@@ -139,9 +143,23 @@ const assert=require('node:assert/strict');
    document.getElementById('status').textContent.includes('Неполный или несовместимый паспорт'));
  assert(await page.locator('#history').isVisible(),'Reject mismatched form passport before displaying scores');
  tamperResultFormKey=false;
+ tamperScaleRange=true;
+ await page.locator('#historyList li button:not([data-compare-run])').click();
+ await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Несовместимые значения сохранённых шкал'));
+ assert(await page.locator('#history').isVisible(),'Out-of-range score must never open result screen');
+ tamperScaleRange=false;
  await page.locator('#historyFilter').selectOption('UALP_WV21_RU_LIKERT');
  await page.waitForFunction(()=>document.querySelectorAll('#historyList li').length===3&&
    document.querySelector('#historyList').textContent.includes('Work Values'));
+ // The Work Values visual scale has a separate canonical maximum of 4.
+ await page.locator('#historyList li button:not([data-compare-run])').first().click();
+ await page.locator('#results').waitFor({state:'visible'});
+ assert.equal(await page.locator('#scores meter').count(),6);
+ assert.deepEqual(await page.locator('#scores meter').evaluateAll(nodes=>nodes.map(n=>[n.max,n.value])),
+   Array.from({length:6},()=>[4,2.25]));
+ assert.match(await page.locator('#scores').innerText(),/2\.25 \/ 4/);
+ await page.locator('#resultHistory').click();
+ await page.locator('#history').waitFor({state:'visible'});
  // One pass is not enough; do not compare different form versions or RIASEC vs Work Values.
  assert(await page.locator('#historyCompare').isDisabled());
  await page.locator('button[data-compare-run="synthetic-history-wv-old"]').click();
