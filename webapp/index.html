@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- index.html | UALP 0.4.6-owner-report-test -->
+<!-- index.html | UALP 0.4.7-owner-route-test -->
 <html lang="ru">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>UALP — PostgreSQL TEST</title>
@@ -29,6 +29,10 @@ progress{width:100%;height:12px;accent-color:#245fac}
 .compare-heading{font-size:.85rem;color:#64758a;font-weight:600}
 .report-text{width:100%;min-height:260px;resize:vertical;border:1px solid #acbbd0;border-radius:10px;padding:13px;font:0.86rem/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
 .compare-row .score{text-align:right;font-variant-numeric:tabular-nums}
+.route-stage{padding:14px 0;border-bottom:1px solid #e6eaf1}
+.route-stage h3{font-size:1rem;margin:0 0 5px}
+.route-stage p{margin:5px 0;line-height:1.5}
+.route-stage .stage-status{font-size:.84rem;font-weight:700;color:#315d87}
 .history-list{list-style:none;margin:16px 0;padding:0}.history-list li{border-bottom:1px solid #e6eaf1;padding:14px 0;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.history-list .muted{margin:6px 0 0}button:focus-visible,input:focus-visible{outline:3px solid #ffb548;outline-offset:2px}
 [hidden]{display:none!important}
 </style></head>
@@ -62,9 +66,16 @@ progress{width:100%;height:12px;accent-color:#245fac}
 </div>
 <div id="draftResumes" hidden aria-live="polite"></div>
 <p class="muted" id="welcomeHelp">Посмотреть предыдущие прохождения можно без нового теста: достаточно войти в приложение.</p>
-<div class="actions"><button id="profileOpen" disabled>Мой профиль</button><button id="historyOpen" disabled>История тестов</button></div>
+<div class="actions"><button id="roadmapOpen" disabled>Мой маршрут</button><button id="profileOpen" disabled>Мой профиль</button><button id="historyOpen" disabled>История тестов</button></div>
 <div class="actions"><button class="primary" id="start" disabled>Начать Work Values · 21</button><button class="primary" id="startRiasec" disabled>Начать RIASEC · 60</button></div>
 <p class="muted" id="riasecWelcomeDisclaimer">RIASEC: O*NET Interest Profiler (USDOL/ETA), русский экспериментальный перевод, только для личного исследования. Ни O*NET, ни USDOL не одобряют UALP.</p>
+</section>
+<section class="card" id="roadmap" hidden>
+<h2>Мой маршрут развития</h2>
+<p class="muted">Фактическое состояние UALP по сохранённым прохождениям. Это не оценка твоих способностей, профессиональной пригодности или личный прогноз.</p>
+<div id="routeSummary" class="profile-metrics" aria-live="polite"></div>
+<div id="routeStages" aria-live="polite"></div>
+<div class="actions"><button id="roadmapProfile">Мой профиль</button><button id="roadmapHistory">История тестов</button><button id="roadmapHome">На главную</button></div>
 </section>
 <section class="card" id="profile" hidden>
 <h2>Мой профиль — личный TEST</h2>
@@ -118,21 +129,21 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <div class="actions"><button id="resultHome">На главную</button><button id="resultHistory" hidden>К истории</button><button id="resultProfile" hidden>К профилю</button></div>
 </section>
 <p id="status" role="status" aria-live="polite"></p>
-<p class="muted" id="buildVersion">UALP 0.4.6-owner-report-test · TEST · мобильный/настольный веб</p>
+<p class="muted" id="buildVersion">UALP 0.4.7-owner-route-test · TEST · мобильный/настольный веб</p>
 <script>
 (function(){
 'use strict';
 const el=(id)=>document.getElementById(id);
 const state={authenticated:false,form:null,answers:{},index:0,busy:false,requestId:'',draftEnabled:false,preferencesSaved:false,preferencesEditing:false,profileData:null,historyCursor:null,historySelections:[],fromHistory:false,fromProfile:false,historyFromProfile:false};
 const setStatus=(s,error=false)=>{const p=el('status');p.textContent=s;p.className=error?'error':'muted';};
-const show=(id)=>{for(const x of ['welcome','questions','results','history','profile','compare'])el(x).hidden=x!==id;};
+const show=(id)=>{for(const x of ['welcome','questions','results','history','profile','compare','roadmap'])el(x).hidden=x!==id;};
 const newId=()=>crypto.randomUUID();
 function locked(v){
   state.busy=v;
   el('start').disabled=v||!el('consent').checked||!state.preferencesSaved||!state.authenticated;
   el('startRiasec').disabled=v||!el('consent').checked||!state.preferencesSaved||!state.authenticated;
-  el('historyOpen').disabled=v||!state.authenticated;el('profileOpen').disabled=v||!state.authenticated;
-  for(const id of ['historyMore','next','previous','questionHome','logout','login','preferencesSave','preferencesEdit','profileReport','copyReport','hideReport'])el(id).disabled=v;
+  el('historyOpen').disabled=v||!state.authenticated;el('profileOpen').disabled=v||!state.authenticated;el('roadmapOpen').disabled=v||!state.authenticated;
+  for(const id of ['historyMore','next','previous','questionHome','logout','login','preferencesSave','preferencesEdit','profileReport','copyReport','hideReport','roadmapProfile','roadmapHistory','roadmapHome'])el(id).disabled=v;
   el('historyCompare').disabled=v||state.historySelections.length!==2;
   el('historyFilter').disabled=v;
   el('loginFields').hidden=state.authenticated;el('signedIn').hidden=!state.authenticated;
@@ -578,6 +589,81 @@ function buildOwnerReport(profile){
   if(text.length>8500)throw Error('Сводка превышает безопасный размер');
   return text;
 }
+// Owner-only progress is derived from the same read-only /api/profile snapshot.
+// No occupation score, ability judgment, stored learning plan or new canonical data.
+function readRoadmapProgress(data){
+  if(!data||data.ownerMode!=='SINGLE_OWNER_TEST'||!Array.isArray(data.methods)||
+     data.methods.length>12||!Number.isInteger(data.methodCount)||data.methodCount<0||
+     !Number.isInteger(data.completedRuns)||data.completedRuns<0||
+     typeof data.hasMoreMethods!=='boolean')throw Error('Недостоверный ответ профиля');
+  const seen=new Set(),counts={UALP_WV21_RU_LIKERT:0,ONET_SHORT_60_DIGITAL:0};
+  for(const m of data.methods){
+    if(!m||typeof m.formKey!=='string'||seen.has(m.formKey)||
+       !Number.isInteger(m.completedRuns)||m.completedRuns<1)
+      throw Error('Несовместимый список завершённых методик');
+    seen.add(m.formKey);
+    if(Object.prototype.hasOwnProperty.call(counts,m.formKey))
+      counts[m.formKey]=m.completedRuns;
+  }
+  return {
+    workValues:counts.UALP_WV21_RU_LIKERT,
+    riasec:counts.ONET_SHORT_60_DIGITAL,
+    hasProfile:data.completedRuns>0,
+    canCompare:Math.max(...Object.values(counts))>=2
+  };
+}
+function renderRoadmap(data){
+  const progress=readRoadmapProgress(data);
+  const completed=Number(progress.workValues>0)+Number(progress.riasec>0);
+  const summary=el('routeSummary');summary.replaceChildren();
+  for(const label of ['Пройдено методик текущего пилота: '+completed+' из 2',
+                       'Завершённых прохождений: '+data.completedRuns]){
+    const span=document.createElement('span');span.textContent=label;summary.append(span);
+  }
+  const stages=[
+    {
+      title:'1. Исследование интересов и рабочих ценностей',
+      state:completed===2?'Оба теста пройдены':'Ещё не все тесты пройдены',
+      detail:'Work Values: '+(progress.workValues?progress.workValues+' прохожд.':'нет прохождения')+
+        '. RIASEC: '+(progress.riasec?progress.riasec+' прохожд.':'нет прохождения')+
+        '. Методики экспериментальные и не валидированы.'
+    },
+    {
+      title:'2. Сохранённый личный профиль',
+      state:progress.hasProfile?'Доступен':'Пока нет результатов',
+      detail:progress.hasProfile
+        ?'Можно открыть сохранённые исходные показатели; карьерные рекомендации не рассчитаны.'
+        :'После первого завершённого теста появятся сохранённые показатели.'
+    },
+    {
+      title:'3. Повторное прохождение и сравнение',
+      state:progress.canCompare?'Сравнение уже доступно':'Нужны два совместимых прохождения',
+      detail:progress.canCompare
+        ?'В истории можно выбрать две записи одной методики, если их версии и алгоритм совпадают.'
+        :'Сравнение появится при наличии двух прохождений одной методики и одинаковых версий.'
+    },
+    {
+      title:'4. Дополнительная методика ICAR-16',
+      state:'Не запущена в текущем TEST-интерфейсе',
+      detail:'Источник, права, правила оценивания и точность должны пройти отдельную проверку. IQ и процентили не рассчитываются.'
+    },
+    {
+      title:'5. Соответствие профессиям и обучение',
+      state:'Ещё не реализовано',
+      detail:'Подбор ролей, пробелов в навыках и заданий потребует отдельной проверенной базы профессий и согласованных правил. Автоматических рекомендаций сейчас нет.'
+    }
+  ];
+  const host=el('routeStages');host.replaceChildren();
+  for(const stage of stages){
+    const card=document.createElement('section');card.className='route-stage';
+    const heading=document.createElement('h3');heading.textContent=stage.title;
+    const status=document.createElement('p');status.className='stage-status';status.textContent=stage.state;
+    const detail=document.createElement('p');detail.className='muted';detail.textContent=stage.detail;
+    card.append(heading,status,detail);host.append(card);
+  }
+  show('roadmap');
+}
+
 function showProfile(data){
   clearReport();
   state.profileData=data;
@@ -692,6 +778,17 @@ el('logout').onclick=async()=>{
     locked(false);home();el('remember').checked=true;setStatus('Вход на этом устройстве удалён.');
   }catch(e){setStatus('Не удалось выйти. '+e.message,true);}finally{locked(false);}
 };
+el('roadmapOpen').onclick=async()=>{
+  if(state.busy||!state.authenticated)return;
+  locked(true);setStatus('Проверяю сохранённые этапы...');
+  try{
+    const profile=await api('/api/profile','GET');
+    renderRoadmap(profile);setStatus('');
+  }catch(e){setStatus(e.message,true);}finally{locked(false);}
+};
+el('roadmapProfile').onclick=()=>{if(!state.busy)el('profileOpen').click();};
+el('roadmapHistory').onclick=()=>{if(!state.busy)el('historyOpen').click();};
+el('roadmapHome').onclick=home;
 el('profileOpen').onclick=async()=>{
   if(state.busy||!state.authenticated)return;
   locked(true);setStatus('Собираю сохранённый профиль...');
