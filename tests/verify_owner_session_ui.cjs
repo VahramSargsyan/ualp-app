@@ -92,7 +92,7 @@ const assert=require('node:assert/strict');
  await page.locator('#historyFilter').selectOption('ONET_SHORT_60_DIGITAL');
  await page.waitForFunction(()=>document.querySelectorAll('#historyList li').length===1&&
    document.querySelector('#historyList').textContent.includes('RIASEC'));
- await page.locator('#historyList li button').click();
+ await page.locator('#historyList li button:not([data-compare-run])').click();
  await page.locator('#results').waitFor({state:'visible'});
  assert.match(await page.locator('#resultExplain').innerText(),/Шесть независимых сумм интересов/);
  await page.locator('#resultHistory').click();
