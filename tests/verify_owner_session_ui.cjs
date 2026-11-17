@@ -44,7 +44,25 @@ const assert=require('node:assert/strict');
  await ctx.close();
  ctx=await browser.newContext({ignoreHTTPSErrors:true,viewport:{width:393,height:852},storageState:storage});
  page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));
- await page.route('**/api/profile',route=>route.fulfill({json:{methods:[],methodCount:0,completedRuns:0,hasMoreMethods:false}}));
+ const reportProfile={
+  ownerMode:'SINGLE_OWNER_TEST',methodCount:2,completedRuns:3,hasMoreMethods:false,
+  methods:[
+    {formKey:'ONET_SHORT_60_DIGITAL',formVersion:'synthetic-riasec-v1',
+     validationStatus:'NOT_REVIEWED',completedRuns:1,latestRunId:'synthetic-riasec-run',
+     latestAt:'2026-11-16T11:00:00Z',scoringAlgorithmVersion:'RIASEC-SUM-v1',
+     parentScores:['R','I','A','S','E','C'].map(key=>({
+       scaleId:'synthetic-riasec-'+key,key,label:'Synthetic RIASEC '+key,mean:20,answered:10
+     }))},
+    {formKey:'UALP_WV21_RU_LIKERT',formVersion:'synthetic-workvalues-v1',
+     validationStatus:'NOT_REVIEWED',completedRuns:2,latestRunId:'synthetic-wv-run',
+     latestAt:'2026-11-15T11:00:00Z',scoringAlgorithmVersion:'WORKVALUES-MEAN-v1',
+     parentScores:['Achievement','Independence','Recognition','Relations','Support','Conditions'].map(key=>({
+       scaleId:'synthetic-workvalues-'+key,key,label:'Synthetic Work Values '+key,
+       mean:3.25,answered:3
+     }))}
+  ]
+ };
+ await page.route('**/api/profile',route=>route.fulfill({json:reportProfile}));
  await page.route('**/api/forms/*',route=>route.fulfill({json:{formKey:'ONET_SHORT_60_DIGITAL',items:Array.from({length:60},(_,i)=>({itemId:'synthetic-'+i,prompt:'Synthetic item '+i})),options:[{optionKey:'V1',label:'Synthetic answer'}]}}));
  await page.route('**/api/runs',route=>route.fulfill({status:201,json:{scoringAlgorithmVersion:'RIASEC-SUM-v1',runId:'synthetic-run',scores:['R','I','A','S','E','C'].map(key=>({key,mean:10}))}}));
  // Synthetic history responses only; session endpoint still uses real local HTTPS backend.
@@ -123,7 +141,41 @@ const assert=require('node:assert/strict');
  assert.match(await page.locator('#compareSelectionStatus').innerText(),/0 из 2/);
  await page.locator('#historyHome').click();
  await page.locator('#profileOpen').click();await page.locator('#profile').waitFor({state:'visible'});
+ assert(await page.locator('#reportPanel').isHidden(),'Do not show/export private report automatically');
+ await page.locator('#profileReport').click();
+ assert(await page.locator('#reportPanel').isVisible());
+ const report=await page.locator('#reportText').inputValue();
+ assert(report.includes('RIASEC · 60')&&report.includes('Work Values · 21'));
+ assert(report.includes('20 / 40')&&report.includes('3.25 / 4'));
+ assert(report.includes('NOT_REVIEWED')&&report.includes('не нормы'));
+ assert(!report.includes(key),'Never include access key in report');
+ assert(!report.includes('Synthetic item'),'Never include private question text');
+ await page.evaluate(()=>{
+   Object.defineProperty(navigator,'clipboard',{configurable:true,value:{
+     writeText:async value=>{window.__syntheticCopiedText=value}
+   }});
+ });
+ await page.locator('#copyReport').click();
+ await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Сводка скопирована'));
+ assert.equal(await page.evaluate(()=>window.__syntheticCopiedText),report);
+ await page.evaluate(()=>{
+   Object.defineProperty(navigator,'clipboard',{configurable:true,value:{
+     writeText:async()=>{throw Error('Synthetic clipboard denied')}
+   }});
+ });
+ await page.locator('#copyReport').click();
+ await page.waitForFunction(()=>document.getElementById('status').textContent.includes('вручную'));
+ assert.equal(await page.locator('#reportText').inputValue(),report);
+ await page.locator('#hideReport').click();
+ assert(await page.locator('#reportPanel').isHidden());
+ assert.equal(await page.locator('#reportText').inputValue(),'');
+ await page.locator('#profileReport').click();
+ assert(await page.locator('#reportPanel').isVisible());
  await page.locator('#profileHome').click();
+ assert(await page.locator('#reportPanel').isHidden(),'Home clears generated text');
+ assert.equal(await page.locator('#reportText').inputValue(),'');
+ assert.equal(await page.evaluate(()=>localStorage.getItem('ualp-report')),null);
+ 
  assert(await page.locator('#signedIn').isVisible());
  assert(await page.locator('#preferencesPanel').isVisible(),'First login setup remains until explicitly saved');
  await page.locator('#consent').check();
@@ -177,6 +229,6 @@ const assert=require('node:assert/strict');
  await page.locator('#logout').click();
  await page.locator('#loginFields').waitFor({state:'visible'});
  assert.deepEqual(errors,[]);
- console.log('PASS: same-form same-version raw comparison, incompatible version rejection, filter reset, one-time consent, Home, login/history/profile; local HTTPS synthetic');
+ console.log('PASS: explicit private profile report, copy denied fallback, zero storage, plus comparison, login, Home, profile/drafts; synthetic local HTTPS');
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
