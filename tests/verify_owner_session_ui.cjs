@@ -96,6 +96,8 @@ const assert=require('node:assert/strict');
  await page.locator('#preferencesSave').click();
  assert(await page.locator('#preferencesPanel').isHidden(),'After one-time setup, detailed checkboxes should be hidden');
  assert(await page.locator('#preferencesSummary').isVisible(),'Summary/settings control remains available');
+ assert.equal(await page.locator('#welcomeTitle').innerText(),'Главная · UALP');
+ assert(await page.locator('#welcomeIntro').isHidden(),'Long onboarding copy not on authenticated dashboard');
  // Repeated navigation to Home must NOT uncheck consent or redisplay setup.
  for(let i=0;i<2;i++){
    await page.locator('#profileOpen').click();
