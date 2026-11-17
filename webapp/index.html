@@ -606,14 +606,21 @@ function readRoadmapProgress(data){
      !Number.isInteger(data.completedRuns)||data.completedRuns<0||
      typeof data.hasMoreMethods!=='boolean')throw Error('Недостоверный ответ профиля');
   const seen=new Set(),counts={UALP_WV21_RU_LIKERT:0,ONET_SHORT_60_DIGITAL:0};
+  let sumRuns=0;
   for(const m of data.methods){
     if(!m||typeof m.formKey!=='string'||seen.has(m.formKey)||
-       !Number.isInteger(m.completedRuns)||m.completedRuns<1)
+       !Number.isSafeInteger(m.completedRuns)||m.completedRuns<1)
       throw Error('Несовместимый список завершённых методик');
     seen.add(m.formKey);
+    sumRuns+=m.completedRuns;
     if(Object.prototype.hasOwnProperty.call(counts,m.formKey))
       counts[m.formKey]=m.completedRuns;
   }
+  // /api/profile reports counts for the returned bounded method list, not unseen rows.
+  // Reject mismatched totals rather than displaying a fabricated completed route.
+  if(data.methodCount!==seen.size||!Number.isSafeInteger(sumRuns)||
+     data.completedRuns!==sumRuns)
+    throw Error('Несогласованные количества завершённых тестов');
   return {
     workValues:counts.UALP_WV21_RU_LIKERT,
     riasec:counts.ONET_SHORT_60_DIGITAL,
