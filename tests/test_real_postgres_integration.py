@@ -6,6 +6,7 @@ respondent data is present. The DB is a local PostgreSQL service container.
 import concurrent.futures
 import os
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 import psycopg
@@ -13,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 from psycopg.conninfo import conninfo_to_dict
 
-from webapp.main import app, ENABLED_FORM
+from webapp.main import app, ENABLED_FORM, OWNER_RIASEC_VERSION
 
 FORM = "CI-FORM-ONLY"
 KEY = "CI_ONLY_SYNTHETIC_ACCESS_KEY_1234567890123456"
