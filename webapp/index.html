@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- index.html | UALP 0.4.7-owner-route-test -->
+<!-- index.html | UALP 0.4.8-result-provenance-test -->
 <html lang="ru">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>UALP — PostgreSQL TEST</title>
@@ -124,12 +124,13 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <section class="card" id="results" hidden>
 <h2>Результат сохранён в PostgreSQL</h2>
 <p class="muted" id="resultExplain">Ниже указаны только средние значения приоритетов по шести группам (0–4), без норм и рекомендаций.</p>
+<p class="muted" id="resultProvenance"></p>
 <p class="muted" id="resultSource" hidden>RIASEC: O*NET Interest Profiler by USDOL/ETA, изменённый русский перевод. <a href="https://www.onetcenter.org/license_toolsdev.html" rel="noopener noreferrer" target="_blank">Лицензия O*NET Tools Developer License</a>. Методика не валидирована для UALP; одобрения USDOL/ETA нет.</p>
 <ul id="scores" class="scores"></ul><p class="muted" id="reference"></p>
 <div class="actions"><button id="resultHome">На главную</button><button id="resultHistory" hidden>К истории</button><button id="resultProfile" hidden>К профилю</button></div>
 </section>
 <p id="status" role="status" aria-live="polite"></p>
-<p class="muted" id="buildVersion">UALP 0.4.7-owner-route-test · TEST · мобильный/настольный веб</p>
+<p class="muted" id="buildVersion">UALP 0.4.8-result-provenance-test · TEST · мобильный/настольный веб</p>
 <script>
 (function(){
 'use strict';
@@ -369,12 +370,31 @@ function home(){
   clearReport();
   state.form=null;state.answers={};state.index=0;state.requestId='';state.draftEnabled=false;
   state.historyCursor=null;state.historySelections=[];state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
-  el('profileMethods').replaceChildren();el('profileSummary').replaceChildren();el('historyList').replaceChildren();el('scores').replaceChildren();el('reference').textContent='';el('access').value='';
+  el('profileMethods').replaceChildren();el('profileSummary').replaceChildren();el('historyList').replaceChildren();el('scores').replaceChildren();el('reference').textContent='';el('resultProvenance').textContent='';el('access').value='';
   show('welcome');locked(false);renderDraftResumes();renderSelection();setStatus('');
 }
 function displayResult(out){
+  // The persisted run supplies authoritative form/version/status/time provenance.
+  // Never infer validated claims or source identity solely from a score algorithm.
+  const methods={
+    UALP_WV21_RU_LIKERT:{name:'Work Values · 21',algorithm:'WORKVALUES-MEAN-v1'},
+    ONET_SHORT_60_DIGITAL:{name:'RIASEC · 60',algorithm:'RIASEC-SUM-v1'}
+  };
+  const source=out&&Object.prototype.hasOwnProperty.call(methods,out.formKey)
+    ?methods[out.formKey]:null;
+  const timestamp=out&&typeof out.recordedAt==='string'?Date.parse(out.recordedAt):NaN;
+  if(!source||out.scoringAlgorithmVersion!==source.algorithm||
+     out.status!=='COMPLETED'||typeof out.formVersion!=='string'||!out.formVersion||
+     out.formVersion.length>120||typeof out.validationStatus!=='string'||
+     !out.validationStatus||!Number.isFinite(timestamp)||
+     !Array.isArray(out.scores)||out.scores.length!==6)
+    throw Error('Неполный или несовместимый паспорт сохранённого результата');
   show('results');el('scores').replaceChildren();
-  const isRiasec=out.scoringAlgorithmVersion==='RIASEC-SUM-v1';
+  el('resultProvenance').textContent=source.name+
+    ' · версия анкеты: '+out.formVersion+
+    ' · записано: '+prettyDate(out.recordedAt)+
+    ' · проверка методики: '+out.validationStatus;
+  const isRiasec=out.formKey==='ONET_SHORT_60_DIGITAL';
   el('resultExplain').textContent=isRiasec
     ?'Шесть независимых сумм интересов от 0 до 40. Экспериментальный русский перевод, без норм, диагнозов или рекомендаций.'
     :'Ниже указаны только средние значения приоритетов по шести группам (0–4), без норм и рекомендаций.';
