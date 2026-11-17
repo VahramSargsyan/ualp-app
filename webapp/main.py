@@ -1,4 +1,4 @@
-# main.py | UALP 0.4.8-result-provenance-test
+# main.py | UALP 0.4.9-result-scale-bars-test
 """UALP PostgreSQL-only private assessment TEST (no Sheets or Apps Script)."""
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from webapp.riasec_manifest import (
 
 from webapp.owner_session import COOKIE_NAME, SESSION_SECONDS, issue_session, valid_session
 
-APP_VERSION = "0.4.8-result-provenance-test"
+APP_VERSION = "0.4.9-result-scale-bars-test"
 ENABLED_FORM = "UALP_WV21_RU_LIKERT"
 CI_SYNTHETIC_FORM = "CI_RIASEC_60_SYNTHETIC"
 OWNER_RIASEC_FORM = "ONET_SHORT_60_DIGITAL"
