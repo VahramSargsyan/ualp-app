@@ -32,6 +32,8 @@ const RIASEC='ONET_SHORT_60_DIGITAL', WV='UALP_WV21_RU_LIKERT';
  await page.locator('#signedIn').waitFor({state:'visible'});
  await page.locator('#consent').check();
  await page.locator('#draftOptIn').check();
+ await page.locator('#preferencesSave').click();
+ assert(await page.locator('#preferencesPanel').isHidden());
  await page.locator('#startRiasec').click();
  await page.locator('#questions').waitFor({state:'visible'});
  // Two responses and navigation; request identity persists across reload.
@@ -49,9 +51,9 @@ const RIASEC='ONET_SHORT_60_DIGITAL', WV='UALP_WV21_RU_LIKERT';
  await page.reload();
  await page.locator('#signedIn').waitFor({state:'visible'});
  await page.locator('#draftResumes button').first().waitFor({state:'visible'});
- await page.getByRole('button',{name:'Продолжить RIASEC'}).click();
- assert.match(await page.locator('#status').innerText(),/подтверди согласие/i);
- await page.locator('#consent').check();
+ assert(await page.locator('#consent').isChecked(),'Remember the one-time consent on browser reopen');
+ assert(await page.locator('#draftOptIn').isChecked(),'Remember explicit draft opt-in on browser reopen');
+ assert(await page.locator('#preferencesPanel').isHidden(),'Do not return to first-time setup after reload');
  await page.getByRole('button',{name:'Продолжить RIASEC'}).click();
  await page.locator('#questions').waitFor({state:'visible'});
  assert.match(await page.locator('#position').innerText(),/Вопрос 3 из 60/);
@@ -108,9 +110,9 @@ const RIASEC='ONET_SHORT_60_DIGITAL', WV='UALP_WV21_RU_LIKERT';
  await page.locator('#signedIn').waitFor({state:'visible'});
  assert.equal(await page.evaluate(k=>localStorage.getItem(k),PREFIX+RIASEC),null);
  // Unsubmitted opt-in drafts must be wiped at logout, never stored in the session cookie.
- // A full reload resets both the optional draft preference and server submission consent.
- await page.locator('#draftOptIn').check();
- await page.locator('#consent').check();
+ // Full reload must retain the one-time consent and explicit draft preference.
+ assert(await page.locator('#consent').isChecked());
+ assert(await page.locator('#draftOptIn').isChecked());
  await page.locator('#start').click();
  await page.locator('#options input[value="V2"]').check();
  await page.locator('#questionHome').click();
@@ -119,6 +121,7 @@ const RIASEC='ONET_SHORT_60_DIGITAL', WV='UALP_WV21_RU_LIKERT';
  await page.locator('#loginFields').waitFor({state:'visible'});
  assert.equal(await page.evaluate(k=>localStorage.getItem(k),PREFIX+WV),null);
  assert.equal(await page.evaluate(k=>localStorage.getItem(k),PREFIX+RIASEC),null);
+ assert.equal(await page.evaluate(()=>localStorage.getItem('ualp-owner-settings-v1')),null);
  await page.reload();
  await page.locator('#login').waitFor({state:'visible'});
  assert(!(await page.locator('#draftResumes').isVisible()));
