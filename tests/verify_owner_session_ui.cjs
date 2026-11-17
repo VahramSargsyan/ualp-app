@@ -49,10 +49,18 @@ const assert=require('node:assert/strict');
  await page.route('**/api/runs',route=>route.fulfill({status:201,json:{scoringAlgorithmVersion:'RIASEC-SUM-v1',runId:'synthetic-run',scores:['R','I','A','S','E','C'].map(key=>({key,mean:10}))}}));
  // Synthetic history responses only; session endpoint still uses real local HTTPS backend.
  const historyRows=[
-  {runId:'synthetic-history-wv',formKey:'UALP_WV21_RU_LIKERT',
-   formVersion:'synthetic-work-values',status:'COMPLETED',completedAt:'2026-11-15T11:00:00Z'},
+  {runId:'synthetic-history-wv-old',formKey:'UALP_WV21_RU_LIKERT',
+   formVersion:'synthetic-work-values-v1',scoringAlgorithmVersion:'WORKVALUES-MEAN-v1',
+   status:'COMPLETED',completedAt:'2026-11-14T11:00:00Z'},
+  {runId:'synthetic-history-wv-new',formKey:'UALP_WV21_RU_LIKERT',
+   formVersion:'synthetic-work-values-v1',scoringAlgorithmVersion:'WORKVALUES-MEAN-v1',
+   status:'COMPLETED',completedAt:'2026-11-16T11:00:00Z'},
+  {runId:'synthetic-history-wv-different',formKey:'UALP_WV21_RU_LIKERT',
+   formVersion:'synthetic-work-values-v2',scoringAlgorithmVersion:'WORKVALUES-MEAN-v1',
+   status:'COMPLETED',completedAt:'2026-11-17T11:00:00Z'},
   {runId:'synthetic-history-riasec',formKey:'ONET_SHORT_60_DIGITAL',
-   formVersion:'synthetic-riasec',status:'COMPLETED',completedAt:'2026-11-16T11:00:00Z'}
+   formVersion:'synthetic-riasec',scoringAlgorithmVersion:'RIASEC-SUM-v1',
+   status:'COMPLETED',completedAt:'2026-11-15T11:00:00Z'}
  ];
  await page.route('**/api/history**',route=>{
   const u=new URL(route.request().url()),filter=u.searchParams.get('formKey');
@@ -61,18 +69,24 @@ const assert=require('node:assert/strict');
   return route.fulfill({json:{formKeyFilter:filter,items:entries,pageSize:10,nextCursor:null}});
  });
  await page.route('**/api/runs/synthetic-history-*',route=>{
-  const isRiasec=route.request().url().endsWith('synthetic-history-riasec');
+  const runId=route.request().url().split('/').pop();
+  const isRiasec=runId==='synthetic-history-riasec';
+  const isNewest=runId==='synthetic-history-wv-new';
   return route.fulfill({json:{
-    runId:isRiasec?'synthetic-history-riasec':'synthetic-history-wv',
+    runId,status:'COMPLETED',
     scoringAlgorithmVersion:isRiasec?'RIASEC-SUM-v1':'WORKVALUES-MEAN-v1',
-    scores:['R','I','A','S','E','C'].map(k=>({key:k,mean:isRiasec?20:2}))
+    scores:['R','I','A','S','E','C'].map(k=>({
+      scaleId:'synthetic-scale-'+k,key:k,label:'Synthetic scale '+k,
+      answered:isRiasec?10:3,
+      mean:isRiasec?20:isNewest?2.75:2.25
+    }))
   }});
  });
  await page.goto('https://127.0.0.1:8843');
  await page.locator('#signedIn').waitFor({state:'visible'});
  await page.locator('#historyOpen').click();
  await page.locator('#history').waitFor({state:'visible'});
- await page.waitForFunction(()=>document.querySelectorAll('#historyList li').length===2);
+ await page.waitForFunction(()=>document.querySelectorAll('#historyList li').length===4);
  assert((await page.locator('#historyList').innerText()).includes('RIASEC'));
  assert((await page.locator('#historyList').innerText()).includes('Work Values'));
  await page.locator('#historyFilter').selectOption('ONET_SHORT_60_DIGITAL');
@@ -84,8 +98,29 @@ const assert=require('node:assert/strict');
  await page.locator('#resultHistory').click();
  await page.locator('#history').waitFor({state:'visible'});
  await page.locator('#historyFilter').selectOption('UALP_WV21_RU_LIKERT');
- await page.waitForFunction(()=>document.querySelectorAll('#historyList li').length===1&&
+ await page.waitForFunction(()=>document.querySelectorAll('#historyList li').length===3&&
    document.querySelector('#historyList').textContent.includes('Work Values'));
+ // One pass is not enough; do not compare different form versions or RIASEC vs Work Values.
+ assert(await page.locator('#historyCompare').isDisabled());
+ await page.locator('button[data-compare-run="synthetic-history-wv-old"]').click();
+ assert.match(await page.locator('#compareSelectionStatus').innerText(),/1 из 2/);
+ await page.locator('button[data-compare-run="synthetic-history-wv-different"]').click();
+ assert.match(await page.locator('#status').innerText(),/одной методики с одинаковой версией/);
+ assert.match(await page.locator('#compareSelectionStatus').innerText(),/1 из 2/);
+ await page.locator('button[data-compare-run="synthetic-history-wv-new"]').click();
+ assert(await page.locator('#historyCompare').isEnabled());
+ await page.locator('#historyCompare').click();
+ await page.locator('#compare').waitFor({state:'visible'});
+ assert.match(await page.locator('#compareContext').innerText(),/synthetic-work-values-v1/);
+ assert.equal(await page.locator('#compareRows .compare-row').count(),7);
+ assert.match(await page.locator('#compareRows').innerText(),/\+0\.50/);
+ assert.match(await page.locator('#compare').innerText(),/не подтверждение развития навыков/);
+ await page.locator('#compareHistory').click();
+ await page.locator('#history').waitFor({state:'visible'});
+ await page.locator('#historyFilter').selectOption('ONET_SHORT_60_DIGITAL');
+ await page.waitForFunction(()=>document.querySelectorAll('#historyList li').length===1);
+ assert(await page.locator('#historyCompare').isDisabled(),'Filter change clears selections');
+ assert.match(await page.locator('#compareSelectionStatus').innerText(),/0 из 2/);
  await page.locator('#historyHome').click();
  await page.locator('#profileOpen').click();await page.locator('#profile').waitFor({state:'visible'});
  await page.locator('#profileHome').click();
@@ -142,6 +177,6 @@ const assert=require('node:assert/strict');
  await page.locator('#logout').click();
  await page.locator('#loginFields').waitFor({state:'visible'});
  assert.deepEqual(errors,[]);
- console.log('PASS: one-time owner setup, Home navigation preserves consent, browser reload restores settings, logout clears settings, login/history/profile; local HTTPS synthetic');
+ console.log('PASS: same-form same-version raw comparison, incompatible version rejection, filter reset, one-time consent, Home, login/history/profile; local HTTPS synthetic');
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
