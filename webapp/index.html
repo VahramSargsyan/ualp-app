@@ -109,8 +109,8 @@ const show=(id)=>{for(const x of ['welcome','questions','results','history','pro
 const newId=()=>crypto.randomUUID();
 function locked(v){
   state.busy=v;
-  el('start').disabled=v||!el('consent').checked||!state.authenticated;
-  el('startRiasec').disabled=v||!el('consent').checked||!state.authenticated;
+  el('start').disabled=v||!el('consent').checked||!state.preferencesSaved||!state.authenticated;
+  el('startRiasec').disabled=v||!el('consent').checked||!state.preferencesSaved||!state.authenticated;
   el('historyOpen').disabled=v||!state.authenticated;el('profileOpen').disabled=v||!state.authenticated;
   for(const id of ['historyMore','next','previous','questionHome','logout','login','preferencesSave','preferencesEdit'])el(id).disabled=v;
   el('historyFilter').disabled=v;
