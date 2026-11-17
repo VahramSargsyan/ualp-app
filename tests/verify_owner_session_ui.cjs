@@ -91,13 +91,15 @@ const assert=require('node:assert/strict');
   const entries=historyRows.filter(x=>filter==='ALL'||x.formKey===filter);
   return route.fulfill({json:{formKeyFilter:filter,items:entries,pageSize:10,nextCursor:null}});
  });
+ let tamperResultFormKey=false;
  await page.route('**/api/runs/synthetic-history-*',route=>{
   const runId=route.request().url().split('/').pop();
   const isRiasec=runId==='synthetic-history-riasec';
   const isNewest=runId==='synthetic-history-wv-new';
   return route.fulfill({json:{
     runId,status:'COMPLETED',
-    formKey:isRiasec?'ONET_SHORT_60_DIGITAL':'UALP_WV21_RU_LIKERT',
+    formKey:tamperResultFormKey?'UNRELATED_FORM':
+      isRiasec?'ONET_SHORT_60_DIGITAL':'UALP_WV21_RU_LIKERT',
     formVersion:isRiasec?'synthetic-riasec':
       runId==='synthetic-history-wv-different'?'synthetic-work-values-v2':'synthetic-work-values-v1',
     validationStatus:'NOT_REVIEWED',recordedAt:isRiasec?'2026-11-15T11:00:00Z':
@@ -130,6 +132,13 @@ const assert=require('node:assert/strict');
  assert.match(provenance,/записано:/);
  await page.locator('#resultHistory').click();
  await page.locator('#history').waitFor({state:'visible'});
+ // A corrupted/mismatched stored-result passport must not be shown as a real score.
+ tamperResultFormKey=true;
+ await page.locator('#historyList li button:not([data-compare-run])').click();
+ await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Несовместимый паспорт')||
+   document.getElementById('status').textContent.includes('Неполный или несовместимый паспорт'));
+ assert(await page.locator('#history').isVisible(),'Reject mismatched form passport before displaying scores');
+ tamperResultFormKey=false;
  await page.locator('#historyFilter').selectOption('UALP_WV21_RU_LIKERT');
  await page.waitForFunction(()=>document.querySelectorAll('#historyList li').length===3&&
    document.querySelector('#historyList').textContent.includes('Work Values'));
