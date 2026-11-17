@@ -315,8 +315,11 @@ def compute_scores(answer_map: dict, option_scores: dict, links: list, rules: li
 
 def stored_result(conn, run_id: str):
     run = conn.execute(
-        """SELECT run_id,form_id,algorithm_version,status FROM ualp_assessment_runs
-           WHERE run_id=%s""", (run_id,)
+        """SELECT r.run_id,r.form_id,r.algorithm_version,r.status,r.created_at,
+                  f.form_key,f.form_version,f.validation_status
+           FROM ualp_assessment_runs AS r
+           JOIN ualp_catalog_forms AS f ON f.form_id=r.form_id
+           WHERE r.run_id=%s""", (run_id,)
     ).fetchone()
     if not run:
         raise HTTPException(404, "Run not found")
@@ -329,6 +332,9 @@ def stored_result(conn, run_id: str):
     ).fetchall()
     return {
         "runId": str(run["run_id"]), "status": run["status"],
+        "formKey": run["form_key"], "formVersion": run["form_version"],
+        "validationStatus": run["validation_status"],
+        "recordedAt": run["created_at"].isoformat(),
         "scoringAlgorithmVersion": run["algorithm_version"],
         "scores": [{"scaleId": s["scale_id"], "key": s["scale_key"],
                     "label": s["label"], "mean": s["raw_score"],
