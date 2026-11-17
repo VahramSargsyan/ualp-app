@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- index.html | UALP 0.4.9-result-scale-bars-test -->
+<!-- index.html | UALP 0.5.0-raw-score-trends-test -->
 <html lang="ru">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>UALP — PostgreSQL TEST</title>
@@ -30,6 +30,10 @@ progress{width:100%;height:12px;accent-color:#245fac}
 .result-scale-caption{font-size:.86rem;color:#64758a;line-height:1.45}
 .score{font-weight:700;font-variant-numeric:tabular-nums}
 .profile-metrics{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}.profile-metrics span{background:#eef3fc;border-radius:10px;padding:9px 13px;font-size:.91rem}.profile-method{border:1px solid #dce3ed;border-radius:12px;padding:15px;margin:15px 0}.profile-method h3{font-size:1.08rem;margin:0 0 7px}.profile-method .muted{margin:5px 0 12px}.profile-row{display:grid;grid-template-columns:minmax(100px,1fr) 85px 45px;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #eef1f5}.profile-row meter{width:100%;height:15px}.profile-pending{border-top:1px solid #e6eaf1;padding-top:10px;margin-top:14px}
+.trend-panel{border:1px solid #dce3ed;border-radius:12px;padding:12px;margin:12px 0}
+.trend-panel h3{font-size:1.02rem;margin:0 0 6px}
+.trend-plot{width:100%;max-height:96px;display:block}
+.trend-text{font-size:.87rem;color:#526780;line-height:1.5;overflow-wrap:anywhere}
 .compare-row{display:grid;grid-template-columns:minmax(110px,1fr) 55px 55px 62px;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid #e6eaf1}
 .compare-heading{font-size:.85rem;color:#64758a;font-weight:600}
 .report-text{width:100%;min-height:260px;resize:vertical;border:1px solid #acbbd0;border-radius:10px;padding:13px;font:0.86rem/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
@@ -108,9 +112,24 @@ progress{width:100%;height:12px;accent-color:#245fac}
 </select>
 <p class="muted">Чтобы сравнить два завершённых прохождения, отметь их в списке. Сопоставляются только одна методика и одинаковые версии.</p>
 <div class="actions"><span id="compareSelectionStatus" role="status">Выбрано: 0 из 2</span><button id="historyCompare" disabled>Сравнить выбранные</button></div>
+<div class="actions">
+  <label for="trendVersion">Динамика одной версии анкеты</label>
+  <select id="trendVersion" aria-label="Версия для просмотра динамики" disabled>
+    <option value="">Нужны два совместимых прохождения</option>
+  </select>
+  <button id="historyTrend" disabled>Показать динамику</button>
+</div>
+<p class="muted" id="trendHint">Динамика использует не больше шести уже загруженных прохождений; новые тесты не создаются.</p>
 <ul id="historyList" class="history-list"></ul>
 <p id="historyEmpty" class="muted" hidden>Сохранённых прохождений пока нет.</p>
 <div class="actions"><button id="historyHome">На главную</button><button id="historyProfile" hidden>К профилю</button><button id="historyMore" hidden>Показать ещё</button></div>
+</section>
+<section class="card" id="trend" hidden>
+<h2>Динамика исходных баллов</h2>
+<p class="muted" id="trendContext"></p>
+<p class="notice">Графики показывают только исходные оценки одной версии анкеты. Изменения баллов не подтверждают профессиональный рост, навыки или достоверность методики.</p>
+<div id="trendRows"></div>
+<div class="actions"><button id="trendHistory">К истории</button><button id="trendHome">На главную</button></div>
 </section>
 <section class="card" id="compare" hidden>
 <h2>Сравнение сохранённых результатов</h2>
@@ -136,12 +155,12 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <div class="actions"><button id="resultHome">На главную</button><button id="resultHistory" hidden>К истории</button><button id="resultProfile" hidden>К профилю</button></div>
 </section>
 <p id="status" role="status" aria-live="polite"></p>
-<p class="muted" id="buildVersion">UALP 0.4.9-result-scale-bars-test · TEST · мобильный/настольный веб</p>
+<p class="muted" id="buildVersion">UALP 0.5.0-raw-score-trends-test · TEST · мобильный/настольный веб</p>
 <script>
 (function(){
 'use strict';
 const el=(id)=>document.getElementById(id);
-const state={authenticated:false,form:null,answers:{},index:0,busy:false,requestId:'',draftEnabled:false,preferencesSaved:false,preferencesEditing:false,profileData:null,historyCursor:null,historySelections:[],fromHistory:false,fromProfile:false,historyFromProfile:false};
+const state={authenticated:false,form:null,answers:{},index:0,busy:false,requestId:'',draftEnabled:false,preferencesSaved:false,preferencesEditing:false,profileData:null,historyCursor:null,historyEntries:[],trendGroups:[],historySelections:[],fromHistory:false,fromProfile:false,historyFromProfile:false};
 const setStatus=(s,error=false)=>{const p=el('status');p.textContent=s;p.className=error?'error':'muted';};
 const show=(id)=>{
   // A generated personal report must not remain in the hidden DOM after leaving Profile.
@@ -150,7 +169,11 @@ const show=(id)=>{
     el('reportText').value='';
     el('reportPanel').hidden=true;
   }
-  for(const x of ['welcome','questions','results','history','profile','compare','roadmap'])
+  if(id!=='trend'&&!el('trend').hidden){
+    el('trendRows').replaceChildren();
+    el('trendContext').textContent='';
+  }
+  for(const x of ['welcome','questions','results','history','profile','compare','roadmap','trend'])
     el(x).hidden=x!==id;
 };
 const newId=()=>crypto.randomUUID();
@@ -161,6 +184,8 @@ function locked(v){
   el('historyOpen').disabled=v||!state.authenticated;el('profileOpen').disabled=v||!state.authenticated;el('roadmapOpen').disabled=v||!state.authenticated;
   for(const id of ['historyMore','next','previous','questionHome','logout','login','preferencesSave','preferencesEdit','profileReport','copyReport','hideReport','roadmapProfile','roadmapHistory','roadmapHome'])el(id).disabled=v;
   el('historyCompare').disabled=v||state.historySelections.length!==2;
+  el('historyTrend').disabled=v||!state.trendGroups.length;
+  el('trendVersion').disabled=v||!state.trendGroups.length;
   el('historyFilter').disabled=v;
   el('loginFields').hidden=state.authenticated;el('signedIn').hidden=!state.authenticated;
   el('logout').hidden=!state.authenticated;
@@ -375,9 +400,10 @@ function home(){
   if(state.busy)return;
   clearReport();
   state.form=null;state.answers={};state.index=0;state.requestId='';state.draftEnabled=false;
-  state.historyCursor=null;state.historySelections=[];state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
+  state.historyCursor=null;state.historyEntries=[];state.trendGroups=[];
+  state.historySelections=[];state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
   el('profileMethods').replaceChildren();el('profileSummary').replaceChildren();el('historyList').replaceChildren();el('scores').replaceChildren();el('reference').textContent='';el('resultScaleNote').textContent='';el('resultProvenance').textContent='';el('access').value='';
-  show('welcome');locked(false);renderDraftResumes();renderSelection();setStatus('');
+  show('welcome');locked(false);renderDraftResumes();renderSelection();renderTrendGroups();setStatus('');
 }
 function displayResult(out){
   // Preserve the stored source identity. A visual meter is not a psychometric norm.
@@ -545,6 +571,136 @@ async function compareSelectedRuns(){
   }catch(e){setStatus(e.message,true);}finally{locked(false);}
 }
 
+
+const TREND_LIMIT=6;
+function compatibleTrendGroups(){
+  const selected=el('historyFilter').value;
+  const groups=new Map(),seen=new Set();
+  for(const entry of state.historyEntries){
+    if(!entry||entry.status!=='COMPLETED'||
+       !['UALP_WV21_RU_LIKERT','ONET_SHORT_60_DIGITAL'].includes(entry.formKey)||
+       (selected!=='ALL'&&entry.formKey!==selected)||
+       typeof entry.runId!=='string'||!entry.runId||seen.has(entry.runId)||
+       typeof entry.formVersion!=='string'||!entry.formVersion||
+       typeof entry.scoringAlgorithmVersion!=='string'||!entry.scoringAlgorithmVersion||
+       !Number.isFinite(Date.parse(entry.completedAt)))continue;
+    seen.add(entry.runId);
+    const key=JSON.stringify([entry.formKey,entry.formVersion,entry.scoringAlgorithmVersion]);
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push(entry);
+  }
+  return [...groups].map(([key,entries])=>({
+    key, entries:entries.sort((a,b)=>
+      Date.parse(b.completedAt)-Date.parse(a.completedAt)||
+      b.runId.localeCompare(a.runId))
+  })).filter(g=>g.entries.length>=2)
+    .sort((a,b)=>Date.parse(b.entries[0].completedAt)-Date.parse(a.entries[0].completedAt));
+}
+function renderTrendGroups(){
+  const select=el('trendVersion'),prior=select.value;
+  const groups=compatibleTrendGroups();
+  state.trendGroups=groups;
+  select.replaceChildren();
+  if(!groups.length){
+    const opt=document.createElement('option');opt.value='';
+    opt.textContent='Пока нет двух совместимых прохождений';
+    select.append(opt);
+  }else{
+    for(const group of groups){
+      const entry=group.entries[0],opt=document.createElement('option');
+      opt.value=group.key;
+      const name=entry.formKey==='ONET_SHORT_60_DIGITAL'?'RIASEC':'Work Values';
+      opt.textContent=name+' · '+entry.formVersion+' · '+group.entries.length+' записей';
+      select.append(opt);
+    }
+    if(groups.some(g=>g.key===prior))select.value=prior;
+  }
+  select.disabled=state.busy||!groups.length;
+  el('historyTrend').disabled=state.busy||!groups.length;
+  el('trendHint').textContent=groups.length
+    ?'Показываются до '+TREND_LIMIT+' последних совместимых прохождений из загруженной истории. При необходимости нажми «Показать ещё».'
+    :'Для динамики нужны хотя бы два завершённых прохождения одной методики с одинаковой версией вопросов и алгоритма.';
+}
+function renderRawTrend(group,items){
+  const source=group.entries[0];
+  const method=source.formKey==='ONET_SHORT_60_DIGITAL'?'RIASEC':'Work Values';
+  const max=source.formKey==='ONET_SHORT_60_DIGITAL'?40:4;
+  const ordered=group.entries.slice(0,TREND_LIMIT).reverse();
+  if(ordered.length!==items.length)throw Error('Неверное число сохранённых прохождений');
+  const all=[];
+  let template=null;
+  for(let i=0;i<ordered.length;i++){
+    const entry=ordered[i],res=items[i];
+    if(!res||res.runId!==entry.runId||res.status!=='COMPLETED'||
+       res.formKey!==entry.formKey||res.formVersion!==entry.formVersion||
+       res.scoringAlgorithmVersion!==entry.scoringAlgorithmVersion||
+       !Number.isFinite(Date.parse(res.recordedAt))||
+       Date.parse(res.recordedAt)!==Date.parse(entry.completedAt))
+      throw Error('Сохранённый результат не совпадает с историей');
+    const scores=numericScoreRows(res,entry.formKey);
+    if(source.formKey==='ONET_SHORT_60_DIGITAL'&&
+       [...scores.values()].some(x=>!Number.isInteger(x.value)))
+      throw Error('Неожиданные значения шкал RIASEC');
+    if(template&&([...template].some(([id,value])=>
+       !scores.has(id)||scores.get(id).key!==value.key||
+       scores.get(id).answered!==value.answered)))
+      throw Error('Структура шкал изменилась между прохождениями');
+    if(!template)template=scores;
+    all.push(scores);
+  }
+  if(!template||template.size!==6)throw Error('Не найдены все шесть исходных шкал');
+  // Build detached chart content, then reveal it only after complete validation.
+  const panel=document.createDocumentFragment(),NS='http://www.w3.org/2000/svg';
+  const round=(v)=>max===40?String(v):v.toFixed(2);
+  for(const [id,scale] of [...template].sort((a,b)=>a[1].label.localeCompare(b[1].label,'ru'))){
+    const values=all.map(x=>x.get(id).value);
+    const section=document.createElement('section');section.className='trend-panel';
+    const heading=document.createElement('h3');heading.textContent=scale.label;
+    const svg=document.createElementNS(NS,'svg');
+    svg.setAttribute('viewBox','0 0 260 76');svg.setAttribute('class','trend-plot');
+    svg.setAttribute('role','img');
+    svg.setAttribute('aria-label',scale.label+': '+values.map(round).join(' → ')+
+      ' по шкале 0–'+max);
+    const pts=values.map((v,i)=>{
+      const x=12+i*236/(values.length-1);
+      return [x,64-52*v/max];
+    });
+    const line=document.createElementNS(NS,'polyline');
+    line.setAttribute('points',pts.map(p=>p.join(',')).join(' '));
+    line.setAttribute('fill','none');line.setAttribute('stroke','#245fac');
+    line.setAttribute('stroke-width','2.4');line.setAttribute('stroke-linejoin','round');
+    svg.append(line);
+    for(const [x,y] of pts){
+      const circle=document.createElementNS(NS,'circle');
+      circle.setAttribute('cx',String(x));circle.setAttribute('cy',String(y));
+      circle.setAttribute('r','3.4');circle.setAttribute('fill','#245fac');
+      svg.append(circle);
+    }
+    const text=document.createElement('p');text.className='trend-text';
+    text.textContent=ordered.map((e,i)=>
+      new Date(e.completedAt).toLocaleDateString('ru-RU')+': '+round(values[i])).join(' · ')+
+      ' (макс. '+max+')';
+    section.append(heading,svg,text);panel.append(section);
+  }
+  el('trendRows').replaceChildren(panel);
+  el('trendContext').textContent=method+' · версия '+source.formVersion+
+    ' · алгоритм '+source.scoringAlgorithmVersion+
+    ' · записей: '+ordered.length+' (из загруженной истории)';
+  show('trend');
+}
+async function openRawTrend(){
+  if(state.busy||!state.authenticated)return;
+  const group=state.trendGroups.find(g=>g.key===el('trendVersion').value);
+  if(!group||group.entries.length<2)return;
+  const entries=group.entries.slice(0,TREND_LIMIT).reverse();
+  locked(true);setStatus('Читаю сохранённые результаты для динамики...');
+  try{
+    const results=await Promise.all(entries.map(e=>
+      api('/api/runs/'+encodeURIComponent(e.runId),'GET')));
+    renderRawTrend(group,results);setStatus('');
+  }catch(e){setStatus(e.message,true);}finally{locked(false);}
+}
+
 async function loadHistory(reset){
   const cursor=reset?null:state.historyCursor;
   const selected=el('historyFilter').value;
@@ -554,7 +710,8 @@ async function loadHistory(reset){
   if(!Array.isArray(data.items)||data.formKeyFilter!==selected)
     throw new Error('Неверный ответ истории или фильтра');
   const list=el('historyList');
-  if(reset){list.replaceChildren();state.historySelections=[];}
+  if(reset){list.replaceChildren();state.historySelections=[];state.historyEntries=[];}
+  state.historyEntries.push(...data.items);
   data.items.forEach(entry=>{
     const li=document.createElement('li'),info=document.createElement('div');
     const date=document.createElement('strong'),meta=document.createElement('p');
@@ -587,6 +744,7 @@ async function loadHistory(reset){
   el('historyMore').hidden=!state.historyCursor;
   el('historyEmpty').hidden=list.children.length!==0;
   renderSelection();
+  renderTrendGroups();
 }
 const REPORT_FORMS={
   UALP_WV21_RU_LIKERT:{name:'Work Values · 21',maximum:4,decimals:2},
@@ -921,6 +1079,9 @@ el('historyFilter').onchange=async()=>{
   catch(e){setStatus(e.message,true);}finally{locked(false);}
 };
 el('historyCompare').onclick=compareSelectedRuns;
+el('historyTrend').onclick=openRawTrend;
+el('trendHistory').onclick=()=>{if(!state.busy){show('history');setStatus('');}};
+el('trendHome').onclick=home;
 el('compareHistory').onclick=()=>{
   if(state.busy)return;show('history');setStatus('');
 };
