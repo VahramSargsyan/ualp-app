@@ -136,7 +136,16 @@ progress{width:100%;height:12px;accent-color:#245fac}
 const el=(id)=>document.getElementById(id);
 const state={authenticated:false,form:null,answers:{},index:0,busy:false,requestId:'',draftEnabled:false,preferencesSaved:false,preferencesEditing:false,profileData:null,historyCursor:null,historySelections:[],fromHistory:false,fromProfile:false,historyFromProfile:false};
 const setStatus=(s,error=false)=>{const p=el('status');p.textContent=s;p.className=error?'error':'muted';};
-const show=(id)=>{for(const x of ['welcome','questions','results','history','profile','compare','roadmap'])el(x).hidden=x!==id;};
+const show=(id)=>{
+  // A generated personal report must not remain in the hidden DOM after leaving Profile.
+  // Preserve the authorized profile snapshot so the owner can generate it again on return.
+  if(id!=='profile'&&!el('profile').hidden){
+    el('reportText').value='';
+    el('reportPanel').hidden=true;
+  }
+  for(const x of ['welcome','questions','results','history','profile','compare','roadmap'])
+    el(x).hidden=x!==id;
+};
 const newId=()=>crypto.randomUUID();
 function locked(v){
   state.busy=v;
