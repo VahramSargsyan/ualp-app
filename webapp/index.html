@@ -32,8 +32,8 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <header><h1>UALP</h1><span class="tag">PostgreSQL · Private TEST</span><button id="logout" hidden>Выйти</button></header>
 <p class="notice">Исследовательский черновик, не валидированная диагностика. Результаты не предназначены для найма, медицинских решений или оценки интеллекта. Данные сохраняются в отдельной TEST-базе PostgreSQL.</p>
 <section class="card" id="welcome">
-<h2>Мои тесты — личный исследовательский режим</h2>
-<p class="muted">Выбери Work Values (21 вопрос) или RIASEC (60 вопросов). Оба сохраняют результаты отдельно. Русский RIASEC — экспериментальный перевод, не валидирован.</p>
+<h2 id="welcomeTitle">Мои тесты — личный исследовательский режим</h2>
+<p class="muted" id="welcomeIntro">Выбери Work Values (21 вопрос) или RIASEC (60 вопросов). Оба сохраняют результаты отдельно. Русский RIASEC — экспериментальный перевод, не валидирован.</p>
 <div id="loginFields">
 <p class="muted">На личном телефоне введи ключ один раз: вход сохранится на 30 дней. Для постоянного входа открывай этот же адрес в Chrome, а не в новом временном окне чата.</p>
 <label for="access">Ключ доступа TEST</label>
@@ -57,10 +57,10 @@ progress{width:100%;height:12px;accent-color:#245fac}
   <button type="button" id="preferencesEdit">Изменить настройки</button>
 </div>
 <div id="draftResumes" hidden aria-live="polite"></div>
-<p class="muted">Посмотреть предыдущие прохождения можно без нового теста: достаточно войти в приложение.</p>
+<p class="muted" id="welcomeHelp">Посмотреть предыдущие прохождения можно без нового теста: достаточно войти в приложение.</p>
 <div class="actions"><button id="profileOpen" disabled>Мой профиль</button><button id="historyOpen" disabled>История тестов</button></div>
 <div class="actions"><button class="primary" id="start" disabled>Начать Work Values · 21</button><button class="primary" id="startRiasec" disabled>Начать RIASEC · 60</button></div>
-<p class="muted">RIASEC: O*NET Interest Profiler (USDOL/ETA), русский экспериментальный перевод, только для личного исследования. Ни O*NET, ни USDOL не одобряют UALP.</p>
+<p class="muted" id="riasecWelcomeDisclaimer">RIASEC: O*NET Interest Profiler (USDOL/ETA), русский экспериментальный перевод, только для личного исследования. Ни O*NET, ни USDOL не одобряют UALP.</p>
 </section>
 <section class="card" id="profile" hidden>
 <h2>Мой профиль — личный TEST</h2>
@@ -122,6 +122,11 @@ const PREF_KEY='ualp-owner-settings-v1';
 const PREF_POLICY='UALP-owner-TEST-2026-11-17';
 function renderPreferences(){
   const signed=state.authenticated;
+  const dashboard=signed&&state.preferencesSaved&&!state.preferencesEditing;
+  el('welcomeTitle').textContent=dashboard?'Главная · UALP':'Мои тесты — личный исследовательский режим';
+  el('welcomeIntro').hidden=dashboard;
+  el('welcomeHelp').hidden=dashboard;
+  el('riasecWelcomeDisclaimer').hidden=dashboard;
   const edit=signed&&state.preferencesEditing;
   el('preferencesPanel').hidden=!edit;
   el('preferencesIntro').hidden=!edit||state.preferencesSaved;
