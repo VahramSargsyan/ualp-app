@@ -24,8 +24,8 @@ LAST_DECISION: 2026-11-15 — owner explicitly rejected Apps Script and selected
 - Deployment gates: local tests => isolated Neon TEST => exact Vercel Hobby Preview runtime => human acceptance. Vercel PROD is not authorized.
 
 CURRENT_MODE: IMPLEMENT_FEATURE
-CURRENT_CAPABILITY: UALP-MVP-013 / RESULT_RAW_SCALE_BARS (owner-only TEST, manual UAT deferred)
-CURRENT_BOUNDARY: accessible visual bars of stored raw values on saved result screen only, strict 0–4/0–40 form-specific numeric gates and disclaimer. No scoring, schema, identity, database/answer, Android native, PROD/main changes. Batched owner acceptance remains deferred for MVP-010 through MVP-013.
+CURRENT_CAPABILITY: UALP-MVP-014 / BOUNDED_RAW_SCORE_TIMELINE (owner-only TEST, manual UAT deferred)
+CURRENT_BOUNDARY: show a read-only maximum six prior raw-score points per parent scale from already loaded same form/version/algorithm history, without any new persisted data, statistical interpretation, scoring, schema, Android native, main/PROD. Batched owner acceptance remains deferred for MVP-010 through MVP-014.
 TEST_DATABASE: Neon Free project snowy-leaf-35157339 / ualp_test
 PROD: NOT_CONFIGURED / NOT_AUTHORIZED
 TEST_APP: preceding private Vercel branch Preview (PR #6) stays available as baseline; MVP-006 is a distinct dependent TEST candidate branch, not main/PROD. No automatic deployment/promotion authorization beyond owner-only Preview. See latest Build Packet section and PR receipt for exact candidate/checks. The earlier Render Free shell remains superseded.
