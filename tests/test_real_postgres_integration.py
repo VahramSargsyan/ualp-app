@@ -536,7 +536,7 @@ def test_08_riasec_complete_http_atomic_idempotency_under_ci_guard(
     out = saved.json()
     assert out["status"] == "COMPLETED"
     assert out["formKey"] == key
-    assert out["formVersion"] == OWNER_RIASEC_VERSION
+    assert out["formVersion"] == "synthetic-only"
     assert out["validationStatus"] == "NOT_REVIEWED"
     assert datetime.fromisoformat(out["recordedAt"]).tzinfo is not None
     assert "answers" not in saved.text and "optionKey" not in saved.text
