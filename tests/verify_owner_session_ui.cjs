@@ -64,7 +64,12 @@ const assert=require('node:assert/strict');
  };
  await page.route('**/api/profile',route=>route.fulfill({json:reportProfile}));
  await page.route('**/api/forms/*',route=>route.fulfill({json:{formKey:'ONET_SHORT_60_DIGITAL',items:Array.from({length:60},(_,i)=>({itemId:'synthetic-'+i,prompt:'Synthetic item '+i})),options:[{optionKey:'V1',label:'Synthetic answer'}]}}));
- await page.route('**/api/runs',route=>route.fulfill({status:201,json:{scoringAlgorithmVersion:'RIASEC-SUM-v1',runId:'synthetic-run',scores:['R','I','A','S','E','C'].map(key=>({key,mean:10}))}}));
+ await page.route('**/api/runs',route=>route.fulfill({status:201,json:{
+   runId:'synthetic-run',status:'COMPLETED',formKey:'ONET_SHORT_60_DIGITAL',
+   formVersion:'synthetic-riasec',validationStatus:'NOT_REVIEWED',
+   recordedAt:'2026-11-17T10:00:00+00:00',scoringAlgorithmVersion:'RIASEC-SUM-v1',
+   scores:['R','I','A','S','E','C'].map(key=>({key,mean:10}))
+ }}));
  // Synthetic history responses only; session endpoint still uses real local HTTPS backend.
  const historyRows=[
   {runId:'synthetic-history-wv-old',formKey:'UALP_WV21_RU_LIKERT',
@@ -92,6 +97,11 @@ const assert=require('node:assert/strict');
   const isNewest=runId==='synthetic-history-wv-new';
   return route.fulfill({json:{
     runId,status:'COMPLETED',
+    formKey:isRiasec?'ONET_SHORT_60_DIGITAL':'UALP_WV21_RU_LIKERT',
+    formVersion:isRiasec?'synthetic-riasec':
+      runId==='synthetic-history-wv-different'?'synthetic-work-values-v2':'synthetic-work-values-v1',
+    validationStatus:'NOT_REVIEWED',recordedAt:isRiasec?'2026-11-15T11:00:00Z':
+      runId==='synthetic-history-wv-old'?'2026-11-14T11:00:00Z':'2026-11-16T11:00:00Z',
     scoringAlgorithmVersion:isRiasec?'RIASEC-SUM-v1':'WORKVALUES-MEAN-v1',
     scores:['R','I','A','S','E','C'].map(k=>({
       scaleId:'synthetic-scale-'+k,key:k,label:'Synthetic scale '+k,
@@ -113,6 +123,11 @@ const assert=require('node:assert/strict');
  await page.locator('#historyList li button:not([data-compare-run])').click();
  await page.locator('#results').waitFor({state:'visible'});
  assert.match(await page.locator('#resultExplain').innerText(),/Шесть независимых сумм интересов/);
+ const provenance=await page.locator('#resultProvenance').innerText();
+ assert.match(provenance,/RIASEC · 60/);
+ assert.match(provenance,/synthetic-riasec/);
+ assert.match(provenance,/NOT_REVIEWED/);
+ assert.match(provenance,/записано:/);
  await page.locator('#resultHistory').click();
  await page.locator('#history').waitFor({state:'visible'});
  await page.locator('#historyFilter').selectOption('UALP_WV21_RU_LIKERT');
