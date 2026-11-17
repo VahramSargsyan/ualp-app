@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- index.html | UALP 0.4.3-unified-history-test -->
+<!-- index.html | UALP 0.4.4-consent-home-fix-test -->
 <html lang="ru">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>UALP — PostgreSQL TEST</title>
@@ -43,9 +43,19 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <button class="primary" id="login">Войти</button>
 </div>
 <p id="signedIn" class="muted" hidden>Вход выполнен. Можно открывать профиль и проходить тесты.</p>
-<p><label><input type="checkbox" id="consent"> Я понимаю экспериментальный статус теста и согласен сохранить мои ответы в TEST.</label></p>
-<p><label><input type="checkbox" id="draftOptIn"> Автоматически сохранять незавершённые ответы на этом устройстве (до 7 дней)</label></p>
-<p class="muted">Черновик содержит выбранные ответы без шифрования только в этом браузере, не в PostgreSQL. Восстановление доступно до 7 дней после последнего ответа; просроченный черновик удаляется при следующем входе. Не включай на общем устройстве. «Выйти» удаляет локальные черновики.</p>
+<div id="preferencesIntro" hidden>
+  <p class="muted">Первичная настройка этого устройства — один раз. Подтверди согласие на запись результатов и выбери, сохранять ли незавершённые ответы.</p>
+</div>
+<div id="preferencesPanel" hidden>
+  <p><label><input type="checkbox" id="consent"> Я понимаю экспериментальный статус теста и согласен сохранять мои ответы в TEST.</label></p>
+  <p><label><input type="checkbox" id="draftOptIn"> Сохранять незавершённые ответы на этом устройстве (до 7 дней)</label></p>
+  <p class="muted">Незавершённые ответы хранятся без шифрования только в этом браузере. Не включай на общем устройстве. «Выйти» удаляет черновики и эти настройки.</p>
+  <button type="button" id="preferencesSave" class="primary">Сохранить настройки</button>
+</div>
+<div id="preferencesSummary" hidden class="muted">
+  <span id="preferencesText"></span>
+  <button type="button" id="preferencesEdit">Изменить настройки</button>
+</div>
 <div id="draftResumes" hidden aria-live="polite"></div>
 <p class="muted">Посмотреть предыдущие прохождения можно без нового теста: достаточно войти в приложение.</p>
 <div class="actions"><button id="profileOpen" disabled>Мой профиль</button><button id="historyOpen" disabled>История тестов</button></div>
@@ -88,12 +98,12 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <div class="actions"><button id="resultHome">На главную</button><button id="resultHistory" hidden>К истории</button><button id="resultProfile" hidden>К профилю</button></div>
 </section>
 <p id="status" role="status" aria-live="polite"></p>
-<p class="muted" id="buildVersion">UALP 0.4.3-unified-history-test · TEST · мобильный/настольный веб</p>
+<p class="muted" id="buildVersion">UALP 0.4.4-consent-home-fix-test · TEST · мобильный/настольный веб</p>
 <script>
 (function(){
 'use strict';
 const el=(id)=>document.getElementById(id);
-const state={authenticated:false,form:null,answers:{},index:0,busy:false,requestId:'',draftEnabled:false,historyCursor:null,fromHistory:false,fromProfile:false,historyFromProfile:false};
+const state={authenticated:false,form:null,answers:{},index:0,busy:false,requestId:'',draftEnabled:false,preferencesSaved:false,preferencesEditing:false,historyCursor:null,fromHistory:false,fromProfile:false,historyFromProfile:false};
 const setStatus=(s,error=false)=>{const p=el('status');p.textContent=s;p.className=error?'error':'muted';};
 const show=(id)=>{for(const x of ['welcome','questions','results','history','profile'])el(x).hidden=x!==id;};
 const newId=()=>crypto.randomUUID();
@@ -102,10 +112,64 @@ function locked(v){
   el('start').disabled=v||!el('consent').checked||!state.authenticated;
   el('startRiasec').disabled=v||!el('consent').checked||!state.authenticated;
   el('historyOpen').disabled=v||!state.authenticated;el('profileOpen').disabled=v||!state.authenticated;
-  for(const id of ['historyMore','next','previous','questionHome','logout','login'])el(id).disabled=v;
+  for(const id of ['historyMore','next','previous','questionHome','logout','login','preferencesSave','preferencesEdit'])el(id).disabled=v;
   el('historyFilter').disabled=v;
   el('loginFields').hidden=state.authenticated;el('signedIn').hidden=!state.authenticated;
   el('logout').hidden=!state.authenticated;
+  renderPreferences();
+}
+const PREF_KEY='ualp-owner-settings-v1';
+const PREF_POLICY='UALP-owner-TEST-2026-11-17';
+function renderPreferences(){
+  const signed=state.authenticated;
+  const edit=signed&&state.preferencesEditing;
+  el('preferencesPanel').hidden=!edit;
+  el('preferencesIntro').hidden=!edit||state.preferencesSaved;
+  el('preferencesSummary').hidden=!signed||edit||!state.preferencesSaved;
+  if(signed&&state.preferencesSaved){
+    el('preferencesText').textContent='Согласие подтверждено · Черновики '+
+      (el('draftOptIn').checked?'включены':'выключены')+'.';
+  }
+}
+function restorePreferences(){
+  let saved=null;
+  try{
+    const raw=localStorage.getItem(PREF_KEY);
+    if(raw&&raw.length<512){
+      const obj=JSON.parse(raw);
+      if(obj&&obj.schema===1&&obj.policy===PREF_POLICY&&
+         obj.consent===true&&typeof obj.draftOptIn==='boolean')saved=obj;
+    }
+  }catch(_){}
+  state.preferencesSaved=!!saved;
+  state.preferencesEditing=!saved;
+  el('consent').checked=!!saved;
+  el('draftOptIn').checked=!!saved?.draftOptIn;
+  renderPreferences();
+}
+function savePreferences(){
+  if(!state.authenticated||state.busy)return;
+  if(!el('consent').checked){
+    setStatus('Для прохождения тестов нужно подтвердить согласие на сохранение ответов в TEST.',true);
+    return;
+  }
+  const prefs={schema:1,policy:PREF_POLICY,consent:true,
+               draftOptIn:el('draftOptIn').checked};
+  let persisted=false;
+  try{localStorage.setItem(PREF_KEY,JSON.stringify(prefs));persisted=true;}catch(_){}
+  state.preferencesSaved=true;
+  state.preferencesEditing=false;
+  renderPreferences();
+  locked(false);
+  setStatus(persisted?'Настройки сохранены. Можно пользоваться приложением.':
+    'Настройки действуют до закрытия страницы, но браузер не разрешил их запомнить.',
+    !persisted);
+}
+function clearPreferences(){
+  try{localStorage.removeItem(PREF_KEY);}catch(_){}
+  state.preferencesSaved=false;state.preferencesEditing=false;
+  el('consent').checked=false;el('draftOptIn').checked=false;
+  renderPreferences();
 }
 async function api(url,method,body,accessKey){
   const headers={'Content-Type':'application/json','X-UALP-Request':'1'};
@@ -259,7 +323,7 @@ function home(){
   state.form=null;state.answers={};state.index=0;state.requestId='';state.draftEnabled=false;
   state.historyCursor=null;state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
   el('profileMethods').replaceChildren();el('profileSummary').replaceChildren();el('historyList').replaceChildren();el('scores').replaceChildren();el('reference').textContent='';el('access').value='';
-  el('consent').checked=false;show('welcome');locked(false);renderDraftResumes();setStatus('');
+  show('welcome');locked(false);renderDraftResumes();setStatus('');
 }
 function displayResult(out){
   show('results');el('scores').replaceChildren();
@@ -389,6 +453,11 @@ function showProfile(data){
   show('profile');
 }
 el('consent').onchange=()=>locked(state.busy);
+el('preferencesSave').onclick=savePreferences;
+el('preferencesEdit').onclick=()=>{
+  if(!state.authenticated||state.busy)return;
+  state.preferencesEditing=true;renderPreferences();setStatus('');
+};
 el('login').onclick=async()=>{
   if(state.busy)return;
   if(!el('access').value){setStatus('Введи ключ доступа.',true);return;}
@@ -403,6 +472,7 @@ el('login').onclick=async()=>{
     await api('/api/session','GET');
     state.authenticated=true;
     el('access').value=''; // Clear the sensitive key only after cookie verification succeeded.
+    restorePreferences();
     renderDraftResumes();
     setStatus(remembered?'Вход сохранён на 30 дней в этом браузере. Открывай этот же TEST-адрес.':'Вход выполнен без запоминания устройства.');
   }catch(e){
@@ -421,7 +491,7 @@ el('logout').onclick=async()=>{
       &&!confirm('Выйти? Все локальные черновики и незавершённые ответы будут удалены.'))return;
   locked(true);setStatus('Выход...');
   try{
-    await api('/api/session','DELETE');eraseAllDrafts();state.authenticated=false;
+    await api('/api/session','DELETE');eraseAllDrafts();clearPreferences();state.authenticated=false;
     locked(false);home();el('remember').checked=true;setStatus('Вход на этом устройстве удалён.');
   }catch(e){setStatus('Не удалось выйти. '+e.message,true);}finally{locked(false);}
 };
@@ -510,7 +580,7 @@ el('next').onclick=async()=>{
 };
 async function restoreSession(){
   locked(true);
-  try{await api('/api/session','GET');state.authenticated=true;renderDraftResumes();setStatus('Вход восстановлен.');}
+  try{await api('/api/session','GET');state.authenticated=true;restorePreferences();renderDraftResumes();setStatus('Вход восстановлен.');}
   catch(e){state.authenticated=false;setStatus(e.message.includes('Вход не выполнен')?'':e.message,true);}
   finally{locked(false);}
 }
