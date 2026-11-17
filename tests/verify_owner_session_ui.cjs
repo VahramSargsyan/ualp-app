@@ -195,6 +195,25 @@ const assert=require('node:assert/strict');
  assert.equal(await page.locator('#reportText').inputValue(),'');
  await page.locator('#profileReport').click();
  assert(await page.locator('#reportPanel').isVisible());
+ // Leaving Profile for History also clears sensitive report text from hidden DOM.
+ await page.locator('#profileHistory').click();
+ await page.locator('#history').waitFor({state:'visible'});
+ assert(await page.locator('#reportPanel').isHidden(),'History navigation hides private report');
+ assert.equal(await page.locator('#reportText').inputValue(),'','History navigation clears hidden report text');
+ await page.locator('#historyProfile').click();
+ await page.locator('#profile').waitFor({state:'visible'});
+ await page.locator('#profileReport').click();
+ assert(await page.locator('#reportPanel').isVisible(),'Owner may regenerate from authorized profile on return');
+ assert.equal(await page.locator('#reportText').inputValue(),report);
+ // Leaving Profile for a stored result must not leak the report in a hidden panel.
+ await page.locator('#profileMethods .profile-method button').first().click();
+ await page.locator('#results').waitFor({state:'visible'});
+ assert(await page.locator('#reportPanel').isHidden());
+ assert.equal(await page.locator('#reportText').inputValue(),'');
+ await page.locator('#resultProfile').click();
+ await page.locator('#profile').waitFor({state:'visible'});
+ await page.locator('#profileReport').click();
+ assert(await page.locator('#reportPanel').isVisible());
  await page.locator('#profileHome').click();
  assert(await page.locator('#reportPanel').isHidden(),'Home clears generated text');
  assert.equal(await page.locator('#reportText').inputValue(),'');
