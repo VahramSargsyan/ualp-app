@@ -145,6 +145,11 @@ def test_02_actual_postgres_transaction_retry_conflict(api, isolated_postgres):
     assert first.status_code == 201, first.text
     result = first.json()
     assert result["status"] == "COMPLETED"
+    assert result["formKey"] == ENABLED_FORM
+    assert result["formVersion"] == "ci-v1"
+    assert result["validationStatus"] == "NOT_REVIEWED"
+    assert datetime.fromisoformat(result["recordedAt"]).tzinfo is not None
+    assert "answers" not in first.text and "optionKey" not in first.text
     assert len(result["scores"]) == 6
     assert counts(isolated_postgres) == (1, 21, 27)
 
@@ -529,6 +534,11 @@ def test_08_riasec_complete_http_atomic_idempotency_under_ci_guard(
     assert saved.status_code == 201, saved.text
     out = saved.json()
     assert out["status"] == "COMPLETED"
+    assert out["formKey"] == key
+    assert out["formVersion"] == OWNER_RIASEC_VERSION
+    assert out["validationStatus"] == "NOT_REVIEWED"
+    assert datetime.fromisoformat(out["recordedAt"]).tzinfo is not None
+    assert "answers" not in saved.text and "optionKey" not in saved.text
     assert out["scoringAlgorithmVersion"] == "RIASEC-SUM-v1"
     scores = {s["key"]: int(s["mean"]) for s in out["scores"]}
     assert scores == {"R": 0, "I": 10, "A": 20, "S": 30, "E": 40, "C": 0}
