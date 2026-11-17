@@ -24,8 +24,8 @@ LAST_DECISION: 2026-11-15 — owner explicitly rejected Apps Script and selected
 - Deployment gates: local tests => isolated Neon TEST => exact Vercel Hobby Preview runtime => human acceptance. Vercel PROD is not authorized.
 
 CURRENT_MODE: IMPLEMENT_FEATURE
-CURRENT_CAPABILITY: UALP-MVP-007 / UNIFIED_ASSESSMENT_HISTORY (candidate; prior MVP-006 owner acceptance still pending)
-CURRENT_BOUNDARY: read-only filtered history of the two approved owner TEST assessments (Work Values/RIASEC), without changing scores, authentication, saved data or partial draft behavior
+CURRENT_CAPABILITY: UALP-MVP-008 / ANDROID_TEST_APK (candidate; owner explicitly requested installable app)
+CURRENT_BOUNDARY: installable single-owner Android WebView TEST packaging on the exact existing Vercel Preview hostname. The existing FastAPI session, assessment data, unified history and drafts remain unchanged. Owner acceptance of MVP-006/007 remains pending.
 TEST_DATABASE: Neon Free project snowy-leaf-35157339 / ualp_test
 PROD: NOT_CONFIGURED / NOT_AUTHORIZED
 TEST_APP: preceding private Vercel branch Preview (PR #6) stays available as baseline; MVP-006 is a distinct dependent TEST candidate branch, not main/PROD. No automatic deployment/promotion authorization beyond owner-only Preview. See latest Build Packet section and PR receipt for exact candidate/checks. The earlier Render Free shell remains superseded.
