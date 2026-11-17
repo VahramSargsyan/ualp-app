@@ -91,7 +91,7 @@ const assert=require('node:assert/strict');
   const entries=historyRows.filter(x=>filter==='ALL'||x.formKey===filter);
   return route.fulfill({json:{formKeyFilter:filter,items:entries,pageSize:10,nextCursor:null}});
  });
- let tamperResultFormKey=false,tamperScaleRange=false;
+ let tamperResultFormKey=false,tamperScaleRange=false,tamperTrendScale=false;
  await page.route('**/api/runs/synthetic-history-*',route=>{
   const runId=route.request().url().split('/').pop();
   const isRiasec=runId==='synthetic-history-riasec';
@@ -108,7 +108,7 @@ const assert=require('node:assert/strict');
     scores:['R','I','A','S','E','C'].map(k=>({
       scaleId:'synthetic-scale-'+k,key:k,label:'Synthetic scale '+k,
       answered:isRiasec?10:3,
-      mean:isRiasec?(tamperScaleRange?41:20):isNewest?2.75:2.25
+      mean:isRiasec?(tamperScaleRange?41:20):isNewest?(tamperTrendScale?9:2.75):2.25
     }))
   }});
  });
@@ -151,6 +151,29 @@ const assert=require('node:assert/strict');
  await page.locator('#historyFilter').selectOption('UALP_WV21_RU_LIKERT');
  await page.waitForFunction(()=>document.querySelectorAll('#historyList li').length===3&&
    document.querySelector('#historyList').textContent.includes('Work Values'));
+ // Two Work Values v1 results are compatible; v2 is excluded, even though loaded.
+ assert(await page.locator('#historyTrend').isEnabled());
+ assert.equal(await page.locator('#trendVersion option').count(),1);
+ assert.match(await page.locator('#trendVersion').inputValue(),/synthetic-work-values-v1/);
+ await page.locator('#historyTrend').click();
+ await page.locator('#trend').waitFor({state:'visible'});
+ assert.equal(await page.locator('#trendRows .trend-panel').count(),6);
+ assert.equal(await page.locator('#trendRows svg').count(),6);
+ assert.equal(await page.locator('#trendRows svg circle').count(),12);
+ assert.match(await page.locator('#trendRows').innerText(),/2\.25/);
+ assert.match(await page.locator('#trendRows').innerText(),/2\.75/);
+ assert.match(await page.locator('#trendContext').innerText(),/записей: 2/);
+ assert.match(await page.locator('#trend').innerText(),/не подтверждают профессиональный рост/);
+ await page.locator('#trendHistory').click();
+ assert(await page.locator('#history').isVisible());
+ assert.equal(await page.locator('#trendRows').innerText(),'','Leaving timeline removes previous private charts');
+ // Forged 9/4 must fail closed before displaying any chart.
+ tamperTrendScale=true;
+ await page.locator('#historyTrend').click();
+ await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Несовместимые сохранённые шкалы'));
+ assert(await page.locator('#history').isVisible(),'Rejected trend stays in History');
+ assert.equal(await page.locator('#trendRows .trend-panel').count(),0);
+ tamperTrendScale=false;
  // The Work Values visual scale has a separate canonical maximum of 4.
  await page.locator('#historyList li button:not([data-compare-run])').first().click();
  await page.locator('#results').waitFor({state:'visible'});
@@ -180,6 +203,8 @@ const assert=require('node:assert/strict');
  await page.locator('#historyFilter').selectOption('ONET_SHORT_60_DIGITAL');
  await page.waitForFunction(()=>document.querySelectorAll('#historyList li').length===1);
  assert(await page.locator('#historyCompare').isDisabled(),'Filter change clears selections');
+ assert(await page.locator('#historyTrend').isDisabled(),'Single RIASEC result cannot produce a trend');
+ assert.equal(await page.locator('#trendVersion option').count(),1);
  assert.match(await page.locator('#compareSelectionStatus').innerText(),/0 из 2/);
  await page.locator('#historyHome').click();
  // Read-only progress route derives evidence from the same authenticated profile.
@@ -325,6 +350,6 @@ const assert=require('node:assert/strict');
  await page.locator('#logout').click();
  await page.locator('#loginFields').waitFor({state:'visible'});
  assert.deepEqual(errors,[]);
- console.log('PASS: profile-derived roadmap complete/empty, profile navigation, private report, copy denial, comparison, login and drafts; synthetic HTTPS');
+ console.log('PASS: bounded raw timeline 2 compatible versions, SVG points, rejection 9/4 and filter reset; route, private report, comparison, login and drafts; synthetic HTTPS');
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
