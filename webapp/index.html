@@ -380,11 +380,10 @@ function home(){
   show('welcome');locked(false);renderDraftResumes();renderSelection();setStatus('');
 }
 function displayResult(out){
-  // The persisted run supplies authoritative form/version/status/time provenance.
-  // Never infer validated claims or source identity solely from a score algorithm.
+  // Preserve the stored source identity. A visual meter is not a psychometric norm.
   const methods={
-    UALP_WV21_RU_LIKERT:{name:'Work Values · 21',algorithm:'WORKVALUES-MEAN-v1'},
-    ONET_SHORT_60_DIGITAL:{name:'RIASEC · 60',algorithm:'RIASEC-SUM-v1'}
+    UALP_WV21_RU_LIKERT:{name:'Work Values · 21',algorithm:'WORKVALUES-MEAN-v1',max:4},
+    ONET_SHORT_60_DIGITAL:{name:'RIASEC · 60',algorithm:'RIASEC-SUM-v1',max:40}
   };
   const source=out&&Object.prototype.hasOwnProperty.call(methods,out.formKey)
     ?methods[out.formKey]:null;
@@ -395,23 +394,15 @@ function displayResult(out){
      !out.validationStatus||!Number.isFinite(timestamp)||
      !Array.isArray(out.scores)||out.scores.length!==6)
     throw Error('Неполный или несовместимый паспорт сохранённого результата');
-  show('results');el('scores').replaceChildren();
-  el('resultProvenance').textContent=source.name+
-    ' · версия анкеты: '+out.formVersion+
-    ' · записано: '+prettyDate(out.recordedAt)+
-    ' · проверка методики: '+out.validationStatus;
   const isRiasec=out.formKey==='ONET_SHORT_60_DIGITAL';
-  el('resultExplain').textContent=isRiasec
-    ?'Шесть независимых сумм интересов от 0 до 40. Экспериментальный русский перевод, без норм, диагнозов или рекомендаций.'
-    :'Ниже указаны только средние значения приоритетов по шести группам (0–4), без норм и рекомендаций.';
-  el('resultSource').hidden=!isRiasec;
-  const max=isRiasec?40:4;
-  const scales=new Set();
+  const max=source.max,scales=new Set();
+  // Reject all broken ranges and duplicate scales before showing any result screen.
   const validated=out.scores.map(item=>{
     const key=item&&typeof item.key==='string'?item.key:'';
     const label=item&&typeof item.label==='string'&&item.label.trim()
       ?item.label:key;
-    const value=Number(item?.mean);
+    const raw=item?.mean;
+    const value=(typeof raw==='number'||(typeof raw==='string'&&raw.trim()))?Number(raw):NaN;
     if(!key||key.length>80||!label||label.length>160||scales.has(key)||
        !Number.isFinite(value)||value<0||value>max||
        (isRiasec&&!Number.isInteger(value)))
@@ -419,6 +410,15 @@ function displayResult(out){
     scales.add(key);
     return {label,value};
   });
+  show('results');
+  el('resultProvenance').textContent=source.name+
+    ' · версия анкеты: '+out.formVersion+
+    ' · записано: '+prettyDate(out.recordedAt)+
+    ' · проверка методики: '+out.validationStatus;
+  el('resultExplain').textContent=isRiasec
+    ?'Шесть независимых сумм интересов от 0 до 40. Экспериментальный русский перевод, без норм, диагнозов или рекомендаций.'
+    :'Ниже указаны только средние значения приоритетов по шести группам (0–4), без норм и рекомендаций.';
+  el('resultSource').hidden=!isRiasec;
   el('resultScaleNote').textContent='Длина полосы показывает только положение сырого балла на шкале 0–'+
     max+'. Это не процент навыка, норматив или сопоставление разных методик.';
   const host=el('scores');host.replaceChildren();
