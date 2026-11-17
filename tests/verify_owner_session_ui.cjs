@@ -31,6 +31,7 @@ const assert=require('node:assert/strict');
  await page.unroute('**/api/session');
  await page.locator('#login').click();
  await page.locator('#signedIn').waitFor({state:'visible'});
+ assert(await page.locator('#preferencesPanel').isVisible(),'Initial owner preference setup must be offered');
  assert.equal(await page.locator('#access').inputValue(),'');
  let cookies=await ctx.cookies();
  const session=cookies.find(c=>c.name==='__Host-ualp_session');
@@ -89,7 +90,26 @@ const assert=require('node:assert/strict');
  await page.locator('#profileOpen').click();await page.locator('#profile').waitFor({state:'visible'});
  await page.locator('#profileHome').click();
  assert(await page.locator('#signedIn').isVisible());
- await page.locator('#consent').check();await page.locator('#startRiasec').click();
+ assert(await page.locator('#preferencesPanel').isVisible(),'First login setup remains until explicitly saved');
+ await page.locator('#consent').check();
+ await page.locator('#draftOptIn').check();
+ await page.locator('#preferencesSave').click();
+ assert(await page.locator('#preferencesPanel').isHidden(),'After one-time setup, detailed checkboxes should be hidden');
+ assert(await page.locator('#preferencesSummary').isVisible(),'Summary/settings control remains available');
+ // Repeated navigation to Home must NOT uncheck consent or redisplay setup.
+ for(let i=0;i<2;i++){
+   await page.locator('#profileOpen').click();
+   await page.locator('#profile').waitFor({state:'visible'});
+   await page.locator('#profileHome').click();
+   assert(await page.locator('#consent').isChecked(),'Home must preserve consent');
+   assert(await page.locator('#draftOptIn').isChecked(),'Home must preserve draft preference');
+   assert(await page.locator('#preferencesPanel').isHidden(),'Do not re-display onboarding on Home');
+ }
+ await page.locator('#preferencesEdit').click();
+ assert(await page.locator('#preferencesPanel').isVisible(),'Owner can edit preferences on demand');
+ await page.locator('#preferencesSave').click();
+ assert(await page.locator('#preferencesPanel').isHidden());
+ await page.locator('#startRiasec').click();
  for(let i=0;i<60;i++){
    await page.locator('#options input').check();await page.locator('#next').click();
  }
@@ -97,11 +117,17 @@ const assert=require('node:assert/strict');
  await page.locator('#resultHome').click();
  assert(await page.locator('#signedIn').isVisible());
  await page.reload();await page.locator('#signedIn').waitFor({state:'visible'});
+ assert(await page.locator('#consent').isChecked(),'Consent restored on the same authenticated device');
+ assert(await page.locator('#draftOptIn').isChecked(),'Opt-in restored on the same authenticated device');
+ assert(await page.locator('#preferencesPanel').isHidden(),'Do not show prior one-time setup on browser reopen');
+ assert(await page.locator('#preferencesSummary').isVisible());
  await page.screenshot({path:'/tmp/ualp-session-mobile.png',fullPage:true});
  await page.locator('#logout').click();await page.locator('#loginFields').waitFor({state:'visible'});
  await page.reload();await page.locator('#login').waitFor({state:'visible'});
  assert.equal(await page.locator('#signedIn').isVisible(),false);
  assert.equal((await ctx.cookies()).some(c=>c.name==='__Host-ualp_session'),false);
+ assert.equal(await page.evaluate(()=>localStorage.getItem('ualp-owner-settings-v1')),null,
+   'Explicit logout clears saved one-time consent and draft preference');
  assert(await page.locator('#remember').isChecked(),'Preference should default to remembered after logout');
  // Shared-device opt-out remains supported; it must issue a non-persistent session cookie.
  await page.locator('#remember').uncheck();
@@ -114,6 +140,6 @@ const assert=require('node:assert/strict');
  await page.locator('#logout').click();
  await page.locator('#loginFields').waitFor({state:'visible'});
  assert.deepEqual(errors,[]);
- console.log('PASS: rejected key vs failed cookie, 30-day login, cross-form history filters + saved result reopen, profile, logout, opt-out; local HTTPS synthetic');
+ console.log('PASS: one-time owner setup, Home navigation preserves consent, browser reload restores settings, logout clears settings, login/history/profile; local HTTPS synthetic');
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
