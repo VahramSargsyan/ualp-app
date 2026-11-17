@@ -365,3 +365,19 @@ REQUIRED_EVIDENCE: full Python and JS syntax checks, synthetic local HTTPS Chrom
 ROLLBACK: revert MVP-011 UI/test/visible-version changes to exact d9541034d299d1a2222e1076694da974c67db93d, without DB rollback or file copying. No new protected data or credentials.
 RESIDUAL_RISK: Process statuses represent availability of the application's pilot features, not respondent aptitude, and must not be interpreted as professional guidance. If a future form activates, its stage needs explicit scoped update. User preferences and session stay unchanged.
 PAID_API_BUDGET: 0; EXECUTOR_PERMISSION: current assistant; REPAIR_LIMIT: two focused evidence-based cycles; STOP_CONDITIONS: stored data mismatch, privacy leak, validation bypass, missing required CI, out-of-scope architecture or PROD dependency. AUTHORIZATION_END: exact TEST candidate and owner acceptance handoff; no automatic next implementation.
+
+
+### MVP-010.1 — transient private report cleanup across navigation (2026-11-17)
+
+CAPABILITY_ID: UALP-MVP-010.1 / REPORT_DOM_CLEAR_ON_LEAVE
+USER_RESULT: The report created by "Мой профиль → Подготовить сводку" must be cleared from the hidden page as soon as owner navigates to History or a saved Result; when returning to Profile the owner can explicitly regenerate it from already-authorized profile data.
+WORKFLOW_MODE: PATCH_FIX; RISK_CLASS: L2 private owner score text remaining in hidden DOM. User's "Продолжай" authorizes bounded technical hardening of the previously created profile report; it does NOT constitute manual acceptance of MVP-010 or MVP-011.
+BASE_COMMIT: b6c75183c36e5a3eccf792f626c6f5d2e7981628; OWNER_BRANCH: feature/ualp-mvp-006-draft-resume-test / DRAFT PR #7; same fixed Vercel TEST origin. Current owner-session Android wrapper and Neon TEST unchanged.
+SOURCE_FINDING: Existing Home and Hide paths clear generated report. Navigation Profile→History or Profile→Saved Result hid the Profile section but left the report's private text in a hidden textarea, retaining more data than the UI promised. The same user can return to profile and explicitly regenerate.
+SCOPE: webapp/index.html: common show(view) clears report textarea/visibility when leaving visible Profile; preserve authorized state.profileData for re-generation after returning from History or Result. Existing Home still clears all profile state. tests/verify_owner_session_ui.cjs adds synthetic local HTTPS Chromium regression covering Profile→History→Profile and Profile→Saved Result→Profile, empty hidden report and explicit safe regeneration.
+OUT_OF_SCOPE: server report export, storing copies, changing clipboard permissions/OS clipboard, server auth/scoring, DB schema, draft policy, occupation recommendation, PROD, APK package/signing changes.
+SCHEMA / MIGRATION: NONE. No canonical writes, IDs or saved answers changed. No personal data committed to repository; only synthetic test fixtures.
+ACCEPTANCE: After report generation and leaving Profile via History or Result, reportPanel hidden and reportText empty, profile result still accessible; returning Profile lets owner generate the same raw report. Home / Logout unchanged. Existing login/cookie, consent, 21/60 drafts, route stages and saved history/compare regressions continue PASS. Full Python/JS/local HTTPS Chromium, isolated real-PG and exact Vercel source status needed; owner phone remains NOT_RUN.
+ROLLBACK: revert small privacy patch to exact b6c75183c36e5a3eccf792f626c6f5d2e7981628; not a DB migration. Existing APK loads hosted UI from same origin; no reinstall needed.
+PAID_API_BUDGET: 0. EXECUTOR_PERMISSION: current assistant only. REPAIR_LIMIT: 2 focused cycles. STOP_CONDITIONS: validation/privacy failure, unexpected schema impact, unavailable required CI, paid resource, PROD boundary.
+AUTHORIZATION_END: TEST technical receipt; manual acceptance of both prior features still pending, no automatic third new product feature.
