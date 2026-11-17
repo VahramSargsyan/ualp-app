@@ -48,13 +48,13 @@ const assert=require('node:assert/strict');
   ownerMode:'SINGLE_OWNER_TEST',methodCount:2,completedRuns:3,hasMoreMethods:false,
   methods:[
     {formKey:'ONET_SHORT_60_DIGITAL',formVersion:'synthetic-riasec-v1',
-     validationStatus:'NOT_REVIEWED',completedRuns:1,latestRunId:'synthetic-riasec-run',
+     validationStatus:'NOT_REVIEWED',completedRuns:1,latestRunId:'synthetic-history-riasec',
      latestAt:'2026-11-16T11:00:00Z',scoringAlgorithmVersion:'RIASEC-SUM-v1',
      parentScores:['R','I','A','S','E','C'].map(key=>({
        scaleId:'synthetic-riasec-'+key,key,label:'Synthetic RIASEC '+key,mean:20,answered:10
      }))},
     {formKey:'UALP_WV21_RU_LIKERT',formVersion:'synthetic-workvalues-v1',
-     validationStatus:'NOT_REVIEWED',completedRuns:2,latestRunId:'synthetic-wv-run',
+     validationStatus:'NOT_REVIEWED',completedRuns:2,latestRunId:'synthetic-history-wv-new',
      latestAt:'2026-11-15T11:00:00Z',scoringAlgorithmVersion:'WORKVALUES-MEAN-v1',
      parentScores:['Achievement','Independence','Recognition','Relations','Support','Conditions'].map(key=>({
        scaleId:'synthetic-workvalues-'+key,key,label:'Synthetic Work Values '+key,
