@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- index.html | UALP 0.4.1-owner-session-test -->
+<!-- index.html | UALP 0.5.0-raw-score-trends-test -->
 <html lang="ru">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>UALP — PostgreSQL TEST</title>
@@ -13,6 +13,7 @@ header{display:flex;justify-content:space-between;align-items:center;gap:10px;ma
 .notice{border:1px solid #f1d6a0;background:#fff8eb;color:#694919;border-radius:10px;padding:13px;line-height:1.5}
 .muted{color:#64758a;font-size:.91rem}label{cursor:pointer}input[type=password]{width:100%;min-height:49px;border-radius:10px;border:1px solid #acbbd0;padding:12px;font:inherit}
 input[type=radio],input[type=checkbox]{accent-color:#245fac;width:21px;height:21px;flex-shrink:0}
+select{max-width:100%;min-height:48px;padding:10px;border:1px solid #acbbd0;border-radius:10px;background:white;font:inherit;color:inherit}
 .choice{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #d1dbe7;border-radius:12px;margin:11px 0;min-height:54px}
 .choice:has(input:checked){border-color:#2961a8;background:#eef6ff}
 button{border:1px solid #b4c4d5;border-radius:11px;padding:11px 18px;font:inherit;min-height:46px;background:white;cursor:pointer}
@@ -21,9 +22,26 @@ button:disabled{opacity:.5;cursor:default}
 .actions{display:flex;gap:12px;justify-content:space-between;flex-wrap:wrap;margin-top:20px}
 progress{width:100%;height:12px;accent-color:#245fac}
 .error{background:#ffecec;color:#9c2424;padding:14px;border-radius:10px;margin:12px 0}
-.scores{list-style:none;padding:0}.scores li{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e6eaf1;padding:11px 0}
+.scores{list-style:none;padding:0}
+.scores li{display:block;border-bottom:1px solid #e6eaf1;padding:11px 0}
+.result-scale-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.result-scale-heading span:first-child{overflow-wrap:anywhere;min-width:0}
+.result-scale-meter{display:block;width:100%;height:17px;margin-top:8px}
+.result-scale-caption{font-size:.86rem;color:#64758a;line-height:1.45}
 .score{font-weight:700;font-variant-numeric:tabular-nums}
 .profile-metrics{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}.profile-metrics span{background:#eef3fc;border-radius:10px;padding:9px 13px;font-size:.91rem}.profile-method{border:1px solid #dce3ed;border-radius:12px;padding:15px;margin:15px 0}.profile-method h3{font-size:1.08rem;margin:0 0 7px}.profile-method .muted{margin:5px 0 12px}.profile-row{display:grid;grid-template-columns:minmax(100px,1fr) 85px 45px;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #eef1f5}.profile-row meter{width:100%;height:15px}.profile-pending{border-top:1px solid #e6eaf1;padding-top:10px;margin-top:14px}
+.trend-panel{border:1px solid #dce3ed;border-radius:12px;padding:12px;margin:12px 0}
+.trend-panel h3{font-size:1.02rem;margin:0 0 6px}
+.trend-plot{width:100%;max-height:96px;display:block}
+.trend-text{font-size:.87rem;color:#526780;line-height:1.5;overflow-wrap:anywhere}
+.compare-row{display:grid;grid-template-columns:minmax(110px,1fr) 55px 55px 62px;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid #e6eaf1}
+.compare-heading{font-size:.85rem;color:#64758a;font-weight:600}
+.report-text{width:100%;min-height:260px;resize:vertical;border:1px solid #acbbd0;border-radius:10px;padding:13px;font:0.86rem/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+.compare-row .score{text-align:right;font-variant-numeric:tabular-nums}
+.route-stage{padding:14px 0;border-bottom:1px solid #e6eaf1}
+.route-stage h3{font-size:1rem;margin:0 0 5px}
+.route-stage p{margin:5px 0;line-height:1.5}
+.route-stage .stage-status{font-size:.84rem;font-weight:700;color:#315d87}
 .history-list{list-style:none;margin:16px 0;padding:0}.history-list li{border-bottom:1px solid #e6eaf1;padding:14px 0;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.history-list .muted{margin:6px 0 0}button:focus-visible,input:focus-visible{outline:3px solid #ffb548;outline-offset:2px}
 [hidden]{display:none!important}
 </style></head>
@@ -31,21 +49,42 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <header><h1>UALP</h1><span class="tag">PostgreSQL · Private TEST</span><button id="logout" hidden>Выйти</button></header>
 <p class="notice">Исследовательский черновик, не валидированная диагностика. Результаты не предназначены для найма, медицинских решений или оценки интеллекта. Данные сохраняются в отдельной TEST-базе PostgreSQL.</p>
 <section class="card" id="welcome">
-<h2>Мои тесты — личный исследовательский режим</h2>
-<p class="muted">Выбери Work Values (21 вопрос) или RIASEC (60 вопросов). Оба сохраняют результаты отдельно. Русский RIASEC — экспериментальный перевод, не валидирован.</p>
+<h2 id="welcomeTitle">Мои тесты — личный исследовательский режим</h2>
+<p class="muted" id="welcomeIntro">Выбери Work Values (21 вопрос) или RIASEC (60 вопросов). Оба сохраняют результаты отдельно. Русский RIASEC — экспериментальный перевод, не валидирован.</p>
 <div id="loginFields">
-<p class="muted">Введи приватный ключ один раз. На личном устройстве можно запомнить вход на 30 дней.</p>
+<p class="muted">На личном телефоне введи ключ один раз: вход сохранится на 30 дней. Для постоянного входа открывай этот же адрес в Chrome, а не в новом временном окне чата.</p>
 <label for="access">Ключ доступа TEST</label>
-<input id="access" type="password" autocomplete="off" placeholder="Введите приватный ключ">
-<p><label><input type="checkbox" id="remember"> Запомнить это устройство на 30 дней</label></p>
+<input id="access" type="password" name="password" autocomplete="current-password" placeholder="Введите приватный ключ">
+<p><label><input type="checkbox" id="remember" checked> Запомнить вход на этом устройстве на 30 дней</label></p>
+<p class="muted">Включено по умолчанию. На общем устройстве отключи. После входа добавь эту страницу на главный экран Chrome — другие TEST-ссылки не разделяют авторизацию.</p>
 <button class="primary" id="login">Войти</button>
 </div>
 <p id="signedIn" class="muted" hidden>Вход выполнен. Можно открывать профиль и проходить тесты.</p>
-<p><label><input type="checkbox" id="consent"> Я понимаю экспериментальный статус теста и согласен сохранить мои ответы в TEST.</label></p>
-<p class="muted">Посмотреть предыдущие прохождения можно без нового теста: достаточно войти в приложение.</p>
-<div class="actions"><button id="profileOpen" disabled>Мой профиль</button><button id="historyOpen" disabled>История Work Values</button></div>
+<div id="preferencesIntro" hidden>
+  <p class="muted">Первичная настройка этого устройства — один раз. Подтверди согласие на запись результатов и выбери, сохранять ли незавершённые ответы.</p>
+</div>
+<div id="preferencesPanel" hidden>
+  <p><label><input type="checkbox" id="consent"> Я понимаю экспериментальный статус теста и согласен сохранять мои ответы в TEST.</label></p>
+  <p><label><input type="checkbox" id="draftOptIn"> Сохранять незавершённые ответы на этом устройстве (до 7 дней)</label></p>
+  <p class="muted">Незавершённые ответы хранятся без шифрования только в этом браузере. Не включай на общем устройстве. «Выйти» удаляет черновики и эти настройки.</p>
+  <button type="button" id="preferencesSave" class="primary">Сохранить настройки</button>
+</div>
+<div id="preferencesSummary" hidden class="muted">
+  <span id="preferencesText"></span>
+  <button type="button" id="preferencesEdit">Изменить настройки</button>
+</div>
+<div id="draftResumes" hidden aria-live="polite"></div>
+<p class="muted" id="welcomeHelp">Посмотреть предыдущие прохождения можно без нового теста: достаточно войти в приложение.</p>
+<div class="actions"><button id="roadmapOpen" disabled>Мой маршрут</button><button id="profileOpen" disabled>Мой профиль</button><button id="historyOpen" disabled>История тестов</button></div>
 <div class="actions"><button class="primary" id="start" disabled>Начать Work Values · 21</button><button class="primary" id="startRiasec" disabled>Начать RIASEC · 60</button></div>
-<p class="muted">RIASEC: O*NET Interest Profiler (USDOL/ETA), русский экспериментальный перевод, только для личного исследования. Ни O*NET, ни USDOL не одобряют UALP.</p>
+<p class="muted" id="riasecWelcomeDisclaimer">RIASEC: O*NET Interest Profiler (USDOL/ETA), русский экспериментальный перевод, только для личного исследования. Ни O*NET, ни USDOL не одобряют UALP.</p>
+</section>
+<section class="card" id="roadmap" hidden>
+<h2>Мой маршрут развития</h2>
+<p class="muted">Фактическое состояние UALP по сохранённым прохождениям. Это не оценка твоих способностей, профессиональной пригодности или личный прогноз.</p>
+<div id="routeSummary" class="profile-metrics" aria-live="polite"></div>
+<div id="routeStages" aria-live="polite"></div>
+<div class="actions"><button id="roadmapProfile">Мой профиль</button><button id="roadmapHistory">История тестов</button><button id="roadmapHome">На главную</button></div>
 </section>
 <section class="card" id="profile" hidden>
 <h2>Мой профиль — личный TEST</h2>
@@ -53,45 +92,162 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <div class="profile-metrics" id="profileSummary" aria-live="polite"></div>
 <div id="profileMethods"></div>
 <p class="muted profile-pending" id="profilePending"></p>
-<div class="actions"><button id="profileHome">На главную</button><button id="profileHistory">История Work Values</button></div>
+<div class="actions"><button id="profileReport">Подготовить сводку</button></div>
+<div id="reportPanel" hidden>
+  <p class="muted">Личная копия исходных баллов без интерпретаций. Текст появится только после нажатия. Копирование передаёт данные в буфер обмена устройства; не вставляй их в чужие чаты и приложения.</p>
+  <label for="reportText">Сводка для копирования</label>
+  <textarea class="report-text" id="reportText" readonly spellcheck="false" rows="15"></textarea>
+  <div class="actions"><button id="copyReport">Копировать текст</button><button id="hideReport">Скрыть сводку</button></div>
+</div>
+<div class="actions"><button id="profileHome">На главную</button><button id="profileHistory">История тестов</button></div>
 </section>
 <section class="card" id="history" hidden>
 <h2>История прохождений</h2>
-<p class="muted">Сохранённые прохождения Work Values. Отображаются только даты и версия. Нажми «Открыть», чтобы увидеть ранее рассчитанные шесть показателей.</p>
+<p class="muted">История сохранённых прохождений Work Values и RIASEC. Выбери методику или все сразу. Можно открыть каждый прежний результат без нового теста.</p>
+<p><label for="historyFilter">Какие результаты показать</label></p>
+<select id="historyFilter" aria-label="Фильтр истории">
+<option value="ALL">Все методики</option>
+<option value="UALP_WV21_RU_LIKERT">Work Values · 21</option>
+<option value="ONET_SHORT_60_DIGITAL">RIASEC · 60</option>
+</select>
+<p class="muted">Чтобы сравнить два завершённых прохождения, отметь их в списке. Сопоставляются только одна методика и одинаковые версии.</p>
+<div class="actions"><span id="compareSelectionStatus" role="status">Выбрано: 0 из 2</span><button id="historyCompare" disabled>Сравнить выбранные</button></div>
+<div class="actions">
+  <label for="trendVersion">Динамика одной версии анкеты</label>
+  <select id="trendVersion" aria-label="Версия для просмотра динамики" disabled>
+    <option value="">Нужны два совместимых прохождения</option>
+  </select>
+  <button id="historyTrend" disabled>Показать динамику</button>
+</div>
+<p class="muted" id="trendHint">Динамика использует не больше шести уже загруженных прохождений; новые тесты не создаются.</p>
 <ul id="historyList" class="history-list"></ul>
 <p id="historyEmpty" class="muted" hidden>Сохранённых прохождений пока нет.</p>
 <div class="actions"><button id="historyHome">На главную</button><button id="historyProfile" hidden>К профилю</button><button id="historyMore" hidden>Показать ещё</button></div>
+</section>
+<section class="card" id="trend" hidden>
+<h2>Динамика исходных баллов</h2>
+<p class="muted" id="trendContext"></p>
+<p class="notice">Графики показывают только исходные оценки одной версии анкеты. Изменения баллов не подтверждают профессиональный рост, навыки или достоверность методики.</p>
+<div id="trendRows"></div>
+<div class="actions"><button id="trendHistory">К истории</button><button id="trendHome">На главную</button></div>
+</section>
+<section class="card" id="compare" hidden>
+<h2>Сравнение сохранённых результатов</h2>
+<p class="muted" id="compareContext"></p>
+<p class="notice">Только разница исходных баллов одной методики. Это не подтверждение развития навыков, профессиональной пригодности или статистически значимого изменения. Методики имеют экспериментальный статус.</p>
+<div id="compareRows" class="compare-rows"></div>
+<div class="actions"><button id="compareHistory">К истории</button><button id="compareHome">На главную</button></div>
 </section>
 <section class="card" id="questions" hidden>
 <p class="muted" id="position"></p><progress id="progress" value="0" max="21"></progress>
 <h2 id="prompt"></h2><div id="options"></div>
 <p id="questionSource" class="muted" hidden></p>
-<div class="actions"><button id="previous">Назад</button><button class="primary" id="next">Далее</button></div>
+<p id="draftStatus" class="muted" role="status"></p>
+<div class="actions"><button id="questionHome">На главную</button><button id="previous">Назад</button><button class="primary" id="next">Далее</button></div>
 </section>
 <section class="card" id="results" hidden>
 <h2>Результат сохранён в PostgreSQL</h2>
 <p class="muted" id="resultExplain">Ниже указаны только средние значения приоритетов по шести группам (0–4), без норм и рекомендаций.</p>
+<p class="muted" id="resultProvenance"></p>
 <p class="muted" id="resultSource" hidden>RIASEC: O*NET Interest Profiler by USDOL/ETA, изменённый русский перевод. <a href="https://www.onetcenter.org/license_toolsdev.html" rel="noopener noreferrer" target="_blank">Лицензия O*NET Tools Developer License</a>. Методика не валидирована для UALP; одобрения USDOL/ETA нет.</p>
+<p id="resultScaleNote" class="result-scale-caption"></p>
 <ul id="scores" class="scores"></ul><p class="muted" id="reference"></p>
 <div class="actions"><button id="resultHome">На главную</button><button id="resultHistory" hidden>К истории</button><button id="resultProfile" hidden>К профилю</button></div>
 </section>
 <p id="status" role="status" aria-live="polite"></p>
+<p class="muted" id="buildVersion">UALP 0.5.0-raw-score-trends-test · TEST · мобильный/настольный веб</p>
 <script>
 (function(){
 'use strict';
 const el=(id)=>document.getElementById(id);
-const state={authenticated:false,form:null,answers:{},index:0,busy:false,requestId:'',historyCursor:null,fromHistory:false,fromProfile:false,historyFromProfile:false};
+const state={authenticated:false,form:null,answers:{},index:0,busy:false,requestId:'',draftEnabled:false,preferencesSaved:false,preferencesEditing:false,profileData:null,historyCursor:null,historyEntries:[],trendGroups:[],historySelections:[],fromHistory:false,fromProfile:false,historyFromProfile:false};
 const setStatus=(s,error=false)=>{const p=el('status');p.textContent=s;p.className=error?'error':'muted';};
-const show=(id)=>{for(const x of ['welcome','questions','results','history','profile'])el(x).hidden=x!==id;};
+const show=(id)=>{
+  // A generated personal report must not remain in the hidden DOM after leaving Profile.
+  // Preserve the authorized profile snapshot so the owner can generate it again on return.
+  if(id!=='profile'&&!el('profile').hidden){
+    el('reportText').value='';
+    el('reportPanel').hidden=true;
+  }
+  if(id!=='trend'&&!el('trend').hidden){
+    el('trendRows').replaceChildren();
+    el('trendContext').textContent='';
+  }
+  for(const x of ['welcome','questions','results','history','profile','compare','roadmap','trend'])
+    el(x).hidden=x!==id;
+};
 const newId=()=>crypto.randomUUID();
 function locked(v){
   state.busy=v;
-  el('start').disabled=v||!el('consent').checked||!state.authenticated;
-  el('startRiasec').disabled=v||!el('consent').checked||!state.authenticated;
-  el('historyOpen').disabled=v||!state.authenticated;el('profileOpen').disabled=v||!state.authenticated;
-  for(const id of ['historyMore','next','previous','logout','login'])el(id).disabled=v;
+  el('start').disabled=v||!el('consent').checked||!state.preferencesSaved||!state.authenticated;
+  el('startRiasec').disabled=v||!el('consent').checked||!state.preferencesSaved||!state.authenticated;
+  el('historyOpen').disabled=v||!state.authenticated;el('profileOpen').disabled=v||!state.authenticated;el('roadmapOpen').disabled=v||!state.authenticated;
+  for(const id of ['historyMore','next','previous','questionHome','logout','login','preferencesSave','preferencesEdit','profileReport','copyReport','hideReport','roadmapProfile','roadmapHistory','roadmapHome'])el(id).disabled=v;
+  el('historyCompare').disabled=v||state.historySelections.length!==2;
+  el('historyTrend').disabled=v||!state.trendGroups.length;
+  el('trendVersion').disabled=v||!state.trendGroups.length;
+  el('historyFilter').disabled=v;
   el('loginFields').hidden=state.authenticated;el('signedIn').hidden=!state.authenticated;
   el('logout').hidden=!state.authenticated;
+  renderPreferences();
+}
+const PREF_KEY='ualp-owner-settings-v1';
+const PREF_POLICY='UALP-owner-TEST-2026-11-17';
+function renderPreferences(){
+  const signed=state.authenticated;
+  const dashboard=signed&&state.preferencesSaved&&!state.preferencesEditing;
+  el('welcomeTitle').textContent=dashboard?'Главная · UALP':'Мои тесты — личный исследовательский режим';
+  el('welcomeIntro').hidden=dashboard;
+  el('welcomeHelp').hidden=dashboard;
+  el('riasecWelcomeDisclaimer').hidden=dashboard;
+  const edit=signed&&state.preferencesEditing;
+  el('preferencesPanel').hidden=!edit;
+  el('preferencesIntro').hidden=!edit||state.preferencesSaved;
+  el('preferencesSummary').hidden=!signed||edit||!state.preferencesSaved;
+  if(signed&&state.preferencesSaved){
+    el('preferencesText').textContent='Согласие подтверждено · Черновики '+
+      (el('draftOptIn').checked?'включены':'выключены')+'.';
+  }
+}
+function restorePreferences(){
+  let saved=null;
+  try{
+    const raw=localStorage.getItem(PREF_KEY);
+    if(raw&&raw.length<512){
+      const obj=JSON.parse(raw);
+      if(obj&&obj.schema===1&&obj.policy===PREF_POLICY&&
+         obj.consent===true&&typeof obj.draftOptIn==='boolean')saved=obj;
+    }
+  }catch(_){}
+  state.preferencesSaved=!!saved;
+  state.preferencesEditing=!saved;
+  el('consent').checked=!!saved;
+  el('draftOptIn').checked=!!saved?.draftOptIn;
+  renderPreferences();
+}
+function savePreferences(){
+  if(!state.authenticated||state.busy)return;
+  if(!el('consent').checked){
+    setStatus('Для прохождения тестов нужно подтвердить согласие на сохранение ответов в TEST.',true);
+    return;
+  }
+  const prefs={schema:1,policy:PREF_POLICY,consent:true,
+               draftOptIn:el('draftOptIn').checked};
+  let persisted=false;
+  try{localStorage.setItem(PREF_KEY,JSON.stringify(prefs));persisted=true;}catch(_){}
+  state.preferencesSaved=true;
+  state.preferencesEditing=false;
+  renderPreferences();
+  locked(false);
+  setStatus(persisted?'Настройки сохранены. Можно пользоваться приложением.':
+    'Настройки действуют до закрытия страницы, но браузер не разрешил их запомнить.',
+    !persisted);
+}
+function clearPreferences(){
+  try{localStorage.removeItem(PREF_KEY);}catch(_){}
+  state.preferencesSaved=false;state.preferencesEditing=false;
+  el('consent').checked=false;el('draftOptIn').checked=false;
+  renderPreferences();
 }
 async function api(url,method,body,accessKey){
   const headers={'Content-Type':'application/json','X-UALP-Request':'1'};
@@ -108,6 +264,117 @@ async function api(url,method,body,accessKey){
   }
   return data;
 }
+// Consent-based, unencrypted per-browser drafts; never store access keys or item prompts.
+const DRAFT_PREFIX='ualp-owner-draft-v1:';
+const DRAFT_TTL=7*24*60*60*1000;
+const DRAFT_FORMS=['UALP_WV21_RU_LIKERT','ONET_SHORT_60_DIGITAL'];
+function draftKey(formKey){return DRAFT_PREFIX+formKey;}
+function eraseDraft(formKey){
+  if(!DRAFT_FORMS.includes(formKey))return;
+  try{localStorage.removeItem(draftKey(formKey));}catch(_){}
+}
+function eraseAllDrafts(){DRAFT_FORMS.forEach(eraseDraft);}
+function readDraft(formKey){
+  if(!state.authenticated||!DRAFT_FORMS.includes(formKey))return null;
+  let raw;
+  try{
+    raw=localStorage.getItem(draftKey(formKey));
+    if(!raw)return null;
+    if(raw.length>16000)throw Error('oversized');
+    const d=JSON.parse(raw),now=Date.now();
+    const count=formKey===DRAFT_FORMS[0]?21:60;
+    if(!d||d.schema!==1||d.formKey!==formKey||
+       typeof d.formVersion!=='string'||!d.formVersion||d.formVersion.length>120||
+       !Number.isInteger(d.savedAt)||!Number.isInteger(d.expiresAt)||
+       d.savedAt>now+60000||d.expiresAt<=now||d.expiresAt>now+DRAFT_TTL+60000||
+       !Array.isArray(d.itemIds)||d.itemIds.length!==count||
+       new Set(d.itemIds).size!==count||
+       d.itemIds.some(id=>typeof id!=='string'||!id||id.length>80)||
+       !Number.isInteger(d.index)||d.index<0||d.index>=count||
+       typeof d.requestId!=='string'||
+       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(d.requestId)||
+       !d.answers||Object.getPrototypeOf(d.answers)!==Object.prototype)throw Error('invalid');
+    const ids=new Set(d.itemIds),responses=Object.entries(d.answers);
+    if(!responses.length||responses.length>count||
+       responses.some(([id,option])=>!ids.has(id)||typeof option!=='string'||!option||option.length>80))
+       throw Error('responses');
+    return d;
+  }catch(_){if(raw!==undefined)eraseDraft(formKey);return null;}
+}
+function saveDraft(){
+  if(!state.draftEnabled||!state.authenticated||!state.form)return false;
+  if(!Object.keys(state.answers).length)return true;
+  const formKey=state.form.formKey;
+  if(!DRAFT_FORMS.includes(formKey))return false;
+  const now=Date.now();
+  const draft={schema:1,formKey,formVersion:state.form.formVersion,
+    itemIds:state.form.items.map(item=>item.itemId),
+    answers:state.answers,index:state.index,requestId:state.requestId,
+    savedAt:now,expiresAt:now+DRAFT_TTL};
+  try{
+    localStorage.setItem(draftKey(formKey),JSON.stringify(draft));
+    el('draftStatus').textContent='Черновик сохранён на этом устройстве на срок до 7 дней.';
+    return true;
+  }catch(_){
+    el('draftStatus').textContent='Черновик не сохранён: хранилище браузера недоступно.';
+    setStatus('Браузер не разрешил сохранить черновик. Не закрывай страницу до завершения.',true);
+    return false;
+  }
+}
+function draftMatchesForm(d,form){
+  const ids=form.items.map(item=>item.itemId);
+  const options=new Set(form.options.map(opt=>opt.optionKey));
+  return form.formKey===d.formKey&&form.formVersion===d.formVersion&&
+    ids.length===d.itemIds.length&&ids.every((id,i)=>id===d.itemIds[i])&&
+    Object.values(d.answers).every(opt=>options.has(opt));
+}
+function renderDraftResumes(){
+  const host=el('draftResumes');host.replaceChildren();
+  if(!state.authenticated){host.hidden=true;return;}
+  for(const formKey of DRAFT_FORMS){
+    const draft=readDraft(formKey);
+    if(!draft)continue;
+    const box=document.createElement('div');
+    box.className='profile-method';
+    const info=document.createElement('p');
+    const name=formKey===DRAFT_FORMS[0]?'Work Values':'RIASEC';
+    info.textContent='Черновик '+name+': ответов '+Object.keys(draft.answers).length+
+      ' из '+draft.itemIds.length+'. Хранится только в этом браузере.';
+    const resume=document.createElement('button');resume.type='button';
+    resume.textContent='Продолжить '+name;
+    resume.onclick=()=>resumeDraft(formKey);
+    const discard=document.createElement('button');discard.type='button';
+    discard.textContent='Удалить черновик';
+    discard.onclick=()=>{
+      if(!confirm('Удалить незавершённые ответы '+name+' с этого устройства?'))return;
+      eraseDraft(formKey);renderDraftResumes();setStatus('Черновик удалён.');
+    };
+    const actions=document.createElement('div');actions.className='actions';
+    actions.append(resume,discard);box.append(info,actions);host.append(box);
+  }
+  host.hidden=host.childElementCount===0;
+}
+async function resumeDraft(formKey){
+  if(state.busy||!state.authenticated)return;
+  if(!el('consent').checked){
+    setStatus('Для продолжения подтверди согласие на сохранение ответов в TEST.',true);return;
+  }
+  const draft=readDraft(formKey);
+  if(!draft){renderDraftResumes();setStatus('Черновик не найден или срок хранения истёк.',true);return;}
+  locked(true);setStatus('Проверяю версию вопросов перед восстановлением...');
+  try{
+    const form=await api('/api/forms/'+encodeURIComponent(formKey),'GET');
+    if(!draftMatchesForm(draft,form)){
+      eraseDraft(formKey);renderDraftResumes();
+      throw Error('Версия вопросов изменилась. Старый черновик удалён; начни тест заново.');
+    }
+    state.form=form;state.answers={...draft.answers};state.index=draft.index;
+    state.requestId=draft.requestId;state.draftEnabled=true;
+    el('draftOptIn').checked=true;render();
+    setStatus('Черновик восстановлен: '+Object.keys(state.answers).length+' ответов.');
+  }catch(e){setStatus(e.message,true);}finally{locked(false);}
+}
+
 function render(){
   const item=state.form.items[state.index];show('questions');
   el('position').textContent='Вопрос '+(state.index+1)+' из '+state.form.items.length;
@@ -121,32 +388,77 @@ function render(){
     const label=document.createElement('label');label.className='choice';
     const radio=document.createElement('input');radio.type='radio';radio.name='answer';radio.value=opt.optionKey;
     radio.checked=state.answers[item.itemId]===opt.optionKey;
-    radio.onchange=()=>{state.answers[item.itemId]=opt.optionKey;setStatus('');};
+    radio.onchange=()=>{state.answers[item.itemId]=opt.optionKey;setStatus('');if(state.draftEnabled)saveDraft();};
     const text=document.createElement('span');text.textContent=opt.label;
     label.append(radio,text);container.appendChild(label);
   });
   el('previous').disabled=state.index===0||state.busy;
+  el('draftStatus').textContent=state.draftEnabled?'Автосохранение ответов включено.':'Черновик только в памяти страницы.';
   el('next').textContent=state.index===state.form.items.length-1?'Сохранить ответы':'Далее';
 }
 function home(){
   if(state.busy)return;
-  state.form=null;state.answers={};state.index=0;state.requestId='';
-  state.historyCursor=null;state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
-  el('profileMethods').replaceChildren();el('profileSummary').replaceChildren();el('historyList').replaceChildren();el('scores').replaceChildren();el('reference').textContent='';el('access').value='';
-  el('consent').checked=false;show('welcome');locked(false);setStatus('');
+  clearReport();
+  state.form=null;state.answers={};state.index=0;state.requestId='';state.draftEnabled=false;
+  state.historyCursor=null;state.historyEntries=[];state.trendGroups=[];
+  state.historySelections=[];state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
+  el('profileMethods').replaceChildren();el('profileSummary').replaceChildren();el('historyList').replaceChildren();el('scores').replaceChildren();el('reference').textContent='';el('resultScaleNote').textContent='';el('resultProvenance').textContent='';el('access').value='';
+  show('welcome');locked(false);renderDraftResumes();renderSelection();renderTrendGroups();setStatus('');
 }
 function displayResult(out){
-  show('results');el('scores').replaceChildren();
-  const isRiasec=out.scoringAlgorithmVersion==='RIASEC-SUM-v1';
+  // Preserve the stored source identity. A visual meter is not a psychometric norm.
+  const methods={
+    UALP_WV21_RU_LIKERT:{name:'Work Values · 21',algorithm:'WORKVALUES-MEAN-v1',max:4},
+    ONET_SHORT_60_DIGITAL:{name:'RIASEC · 60',algorithm:'RIASEC-SUM-v1',max:40}
+  };
+  const source=out&&Object.prototype.hasOwnProperty.call(methods,out.formKey)
+    ?methods[out.formKey]:null;
+  const timestamp=out&&typeof out.recordedAt==='string'?Date.parse(out.recordedAt):NaN;
+  if(!source||out.scoringAlgorithmVersion!==source.algorithm||
+     out.status!=='COMPLETED'||typeof out.formVersion!=='string'||!out.formVersion||
+     out.formVersion.length>120||typeof out.validationStatus!=='string'||
+     !out.validationStatus||!Number.isFinite(timestamp)||
+     !Array.isArray(out.scores)||out.scores.length!==6)
+    throw Error('Неполный или несовместимый паспорт сохранённого результата');
+  const isRiasec=out.formKey==='ONET_SHORT_60_DIGITAL';
+  const max=source.max,scales=new Set();
+  // Reject all broken ranges and duplicate scales before showing any result screen.
+  const validated=out.scores.map(item=>{
+    const key=item&&typeof item.key==='string'?item.key:'';
+    const label=item&&typeof item.label==='string'&&item.label.trim()
+      ?item.label:key;
+    const raw=item?.mean;
+    const value=(typeof raw==='number'||(typeof raw==='string'&&raw.trim()))?Number(raw):NaN;
+    if(!key||key.length>80||!label||label.length>160||scales.has(key)||
+       !Number.isFinite(value)||value<0||value>max||
+       (isRiasec&&!Number.isInteger(value)))
+      throw Error('Несовместимые значения сохранённых шкал');
+    scales.add(key);
+    return {label,value};
+  });
+  show('results');
+  el('resultProvenance').textContent=source.name+
+    ' · версия анкеты: '+out.formVersion+
+    ' · записано: '+prettyDate(out.recordedAt)+
+    ' · проверка методики: '+out.validationStatus;
   el('resultExplain').textContent=isRiasec
     ?'Шесть независимых сумм интересов от 0 до 40. Экспериментальный русский перевод, без норм, диагнозов или рекомендаций.'
     :'Ниже указаны только средние значения приоритетов по шести группам (0–4), без норм и рекомендаций.';
   el('resultSource').hidden=!isRiasec;
-  out.scores.forEach(s=>{
-    const li=document.createElement('li'),name=document.createElement('span'),value=document.createElement('span');
-    name.textContent=s.label||s.key;value.className='score';
-    value.textContent=isRiasec?(Math.round(Number(s.mean))+' / 40'):Number(s.mean).toFixed(2);
-    li.append(name,value);el('scores').append(li);
+  el('resultScaleNote').textContent='Длина полосы показывает только положение сырого балла на шкале 0–'+
+    max+'. Это не процент навыка, норматив или сопоставление разных методик.';
+  const host=el('scores');host.replaceChildren();
+  validated.forEach(item=>{
+    const li=document.createElement('li');
+    const heading=document.createElement('div');heading.className='result-scale-heading';
+    const name=document.createElement('span'),score=document.createElement('strong');
+    name.textContent=item.label;score.className='score';
+    score.textContent=isRiasec?item.value+' / 40':item.value.toFixed(2)+' / 4';
+    heading.append(name,score);
+    const meter=document.createElement('meter');meter.className='result-scale-meter';
+    meter.min=0;meter.max=max;meter.value=item.value;
+    meter.setAttribute('aria-label',item.label+': '+score.textContent);
+    li.append(heading,meter);host.append(li);
   });
   el('reference').textContent='Алгоритм: '+out.scoringAlgorithmVersion+' · ID: '+out.runId;
   el('resultHistory').hidden=!state.fromHistory;
@@ -158,21 +470,259 @@ function prettyDate(iso){
     year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'
   });
 }
+
+function renderSelection(){
+  const chosen=new Set(state.historySelections.map(e=>e.runId));
+  el('compareSelectionStatus').textContent='Выбрано: '+chosen.size+' из 2';
+  el('historyCompare').disabled=state.busy||chosen.size!==2;
+  el('historyList').querySelectorAll('button[data-compare-run]').forEach(b=>{
+    const selected=chosen.has(b.dataset.compareRun);
+    b.textContent=selected?'Убрать из сравнения':'Выбрать для сравнения';
+    b.setAttribute('aria-pressed',selected?'true':'false');
+  });
+}
+function chooseForComparison(entry){
+  if(state.busy||!state.authenticated)return;
+  const existing=state.historySelections.findIndex(e=>e.runId===entry.runId);
+  if(existing!==-1)state.historySelections.splice(existing,1);
+  else{
+    const first=state.historySelections[0];
+    if(first&&(first.formKey!==entry.formKey||
+        first.formVersion!==entry.formVersion||
+        first.scoringAlgorithmVersion!==entry.scoringAlgorithmVersion)){
+      setStatus('Можно сравнивать только два прохождения одной методики с одинаковой версией вопросов и алгоритма.',true);
+      return;
+    }
+    if(state.historySelections.length===2){
+      setStatus('Сначала убери одно из двух выбранных прохождений.',true);return;
+    }
+    state.historySelections.push(entry);
+  }
+  renderSelection();setStatus('');
+}
+function numericScoreRows(result,formKey){
+  if(!result||result.status!=='COMPLETED'||!Array.isArray(result.scores)||
+     result.scores.length!==6)throw Error('Неполный сохранённый результат');
+  const max=formKey==='ONET_SHORT_60_DIGITAL'?40:4;
+  const rows=new Map();
+  for(const score of result.scores){
+    const val=Number(score.mean);
+    if(typeof score.scaleId!=='string'||!score.scaleId||
+       typeof score.key!=='string'||!score.key||
+       !Number.isFinite(val)||val<0||val>max||
+       !Number.isInteger(score.answered)||score.answered<=0||
+       rows.has(score.scaleId))throw Error('Несовместимые сохранённые шкалы');
+    rows.set(score.scaleId,{key:score.key,label:score.label||score.key,
+      value:val,answered:score.answered});
+  }
+  return rows;
+}
+function renderComparison(older,newer,oldResult,newResult){
+  const a=numericScoreRows(oldResult,older.formKey);
+  const b=numericScoreRows(newResult,newer.formKey);
+  if(a.size!==b.size||[...a].some(([id,v])=>
+      !b.has(id)||b.get(id).key!==v.key||b.get(id).answered!==v.answered))
+    throw Error('Шкалы двух прохождений различаются, сравнение невозможно');
+  const method=older.formKey==='ONET_SHORT_60_DIGITAL'?'RIASEC':'Work Values';
+  el('compareContext').textContent=method+' · версия '+older.formVersion+
+    ' · алгоритм '+older.scoringAlgorithmVersion+
+    ' · было: '+prettyDate(older.completedAt)+
+    ' · стало: '+prettyDate(newer.completedAt);
+  const host=el('compareRows');host.replaceChildren();
+  const head=document.createElement('div');head.className='compare-row compare-heading';
+  for(const word of ['Шкала','Было','Стало','Разница']){
+    const span=document.createElement('span');span.textContent=word;head.append(span);
+  }
+  host.append(head);
+  for(const [id,oldScale] of [...a.entries()].sort((a,b)=>a[1].label.localeCompare(b[1].label,'ru'))){
+    const val=b.get(id);
+    const delta=Math.round((val.value-oldScale.value)*100)/100;
+    const decimals=older.formKey==='ONET_SHORT_60_DIGITAL'?0:2;
+    const row=document.createElement('div');row.className='compare-row';
+    for(const label of [oldScale.label,oldScale.value.toFixed(decimals),
+                       val.value.toFixed(decimals),
+                       (delta>0?'+':'')+delta.toFixed(decimals)]){
+      const span=document.createElement('span');
+      span.textContent=label;span.className='score';row.append(span);
+    }
+    row.firstElementChild.className='';host.append(row);
+  }
+  show('compare');
+}
+async function compareSelectedRuns(){
+  if(state.busy||!state.authenticated||state.historySelections.length!==2)return;
+  const pair=state.historySelections.slice().sort((a,b)=>
+    a.completedAt.localeCompare(b.completedAt)||a.runId.localeCompare(b.runId));
+  const [older,newer]=pair;
+  if(older.runId===newer.runId||older.formKey!==newer.formKey||
+     older.formVersion!==newer.formVersion||
+     older.scoringAlgorithmVersion!==newer.scoringAlgorithmVersion){
+    setStatus('Сравнение разных форм или версий недоступно.',true);return;
+  }
+  locked(true);setStatus('Загружаю два сохранённых результата...');
+  try{
+    const [before,after]=await Promise.all(pair.map(e=>
+      api('/api/runs/'+encodeURIComponent(e.runId),'GET')));
+    if(before.runId!==older.runId||after.runId!==newer.runId||
+       before.scoringAlgorithmVersion!==older.scoringAlgorithmVersion||
+       after.scoringAlgorithmVersion!==newer.scoringAlgorithmVersion)
+      throw Error('Результаты не совпадают с выбранными прохождениями');
+    renderComparison(older,newer,before,after);setStatus('');
+  }catch(e){setStatus(e.message,true);}finally{locked(false);}
+}
+
+
+const TREND_LIMIT=6;
+function compatibleTrendGroups(){
+  const selected=el('historyFilter').value;
+  const groups=new Map(),seen=new Set();
+  for(const entry of state.historyEntries){
+    if(!entry||entry.status!=='COMPLETED'||
+       !['UALP_WV21_RU_LIKERT','ONET_SHORT_60_DIGITAL'].includes(entry.formKey)||
+       (selected!=='ALL'&&entry.formKey!==selected)||
+       typeof entry.runId!=='string'||!entry.runId||seen.has(entry.runId)||
+       typeof entry.formVersion!=='string'||!entry.formVersion||
+       typeof entry.scoringAlgorithmVersion!=='string'||!entry.scoringAlgorithmVersion||
+       !Number.isFinite(Date.parse(entry.completedAt)))continue;
+    seen.add(entry.runId);
+    const key=JSON.stringify([entry.formKey,entry.formVersion,entry.scoringAlgorithmVersion]);
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push(entry);
+  }
+  return [...groups].map(([key,entries])=>({
+    key, entries:entries.sort((a,b)=>
+      Date.parse(b.completedAt)-Date.parse(a.completedAt)||
+      b.runId.localeCompare(a.runId))
+  })).filter(g=>g.entries.length>=2)
+    .sort((a,b)=>Date.parse(b.entries[0].completedAt)-Date.parse(a.entries[0].completedAt));
+}
+function renderTrendGroups(){
+  const select=el('trendVersion'),prior=select.value;
+  const groups=compatibleTrendGroups();
+  state.trendGroups=groups;
+  select.replaceChildren();
+  if(!groups.length){
+    const opt=document.createElement('option');opt.value='';
+    opt.textContent='Пока нет двух совместимых прохождений';
+    select.append(opt);
+  }else{
+    for(const group of groups){
+      const entry=group.entries[0],opt=document.createElement('option');
+      opt.value=group.key;
+      const name=entry.formKey==='ONET_SHORT_60_DIGITAL'?'RIASEC':'Work Values';
+      opt.textContent=name+' · '+entry.formVersion+' · '+group.entries.length+' записей';
+      select.append(opt);
+    }
+    if(groups.some(g=>g.key===prior))select.value=prior;
+  }
+  select.disabled=state.busy||!groups.length;
+  el('historyTrend').disabled=state.busy||!groups.length;
+  el('trendHint').textContent=groups.length
+    ?'Показываются до '+TREND_LIMIT+' последних совместимых прохождений из загруженной истории. При необходимости нажми «Показать ещё».'
+    :'Для динамики нужны хотя бы два завершённых прохождения одной методики с одинаковой версией вопросов и алгоритма.';
+}
+function renderRawTrend(group,items){
+  const source=group.entries[0];
+  const method=source.formKey==='ONET_SHORT_60_DIGITAL'?'RIASEC':'Work Values';
+  const max=source.formKey==='ONET_SHORT_60_DIGITAL'?40:4;
+  const ordered=group.entries.slice(0,TREND_LIMIT).reverse();
+  if(ordered.length!==items.length)throw Error('Неверное число сохранённых прохождений');
+  const all=[];
+  let template=null;
+  for(let i=0;i<ordered.length;i++){
+    const entry=ordered[i],res=items[i];
+    if(!res||res.runId!==entry.runId||res.status!=='COMPLETED'||
+       res.formKey!==entry.formKey||res.formVersion!==entry.formVersion||
+       res.scoringAlgorithmVersion!==entry.scoringAlgorithmVersion||
+       !Number.isFinite(Date.parse(res.recordedAt))||
+       Date.parse(res.recordedAt)!==Date.parse(entry.completedAt))
+      throw Error('Сохранённый результат не совпадает с историей');
+    const scores=numericScoreRows(res,entry.formKey);
+    if(source.formKey==='ONET_SHORT_60_DIGITAL'&&
+       [...scores.values()].some(x=>!Number.isInteger(x.value)))
+      throw Error('Неожиданные значения шкал RIASEC');
+    if(template&&([...template].some(([id,value])=>
+       !scores.has(id)||scores.get(id).key!==value.key||
+       scores.get(id).answered!==value.answered)))
+      throw Error('Структура шкал изменилась между прохождениями');
+    if(!template)template=scores;
+    all.push(scores);
+  }
+  if(!template||template.size!==6)throw Error('Не найдены все шесть исходных шкал');
+  // Build detached chart content, then reveal it only after complete validation.
+  const panel=document.createDocumentFragment(),NS='http://www.w3.org/2000/svg';
+  const round=(v)=>max===40?String(v):v.toFixed(2);
+  for(const [id,scale] of [...template].sort((a,b)=>a[1].label.localeCompare(b[1].label,'ru'))){
+    const values=all.map(x=>x.get(id).value);
+    const section=document.createElement('section');section.className='trend-panel';
+    const heading=document.createElement('h3');heading.textContent=scale.label;
+    const svg=document.createElementNS(NS,'svg');
+    svg.setAttribute('viewBox','0 0 260 76');svg.setAttribute('class','trend-plot');
+    svg.setAttribute('role','img');
+    svg.setAttribute('aria-label',scale.label+': '+values.map(round).join(' → ')+
+      ' по шкале 0–'+max);
+    const pts=values.map((v,i)=>{
+      const x=12+i*236/(values.length-1);
+      return [x,64-52*v/max];
+    });
+    const line=document.createElementNS(NS,'polyline');
+    line.setAttribute('points',pts.map(p=>p.join(',')).join(' '));
+    line.setAttribute('fill','none');line.setAttribute('stroke','#245fac');
+    line.setAttribute('stroke-width','2.4');line.setAttribute('stroke-linejoin','round');
+    svg.append(line);
+    for(const [x,y] of pts){
+      const circle=document.createElementNS(NS,'circle');
+      circle.setAttribute('cx',String(x));circle.setAttribute('cy',String(y));
+      circle.setAttribute('r','3.4');circle.setAttribute('fill','#245fac');
+      svg.append(circle);
+    }
+    const text=document.createElement('p');text.className='trend-text';
+    text.textContent=ordered.map((e,i)=>
+      new Date(e.completedAt).toLocaleDateString('ru-RU')+': '+round(values[i])).join(' · ')+
+      ' (макс. '+max+')';
+    section.append(heading,svg,text);panel.append(section);
+  }
+  el('trendRows').replaceChildren(panel);
+  el('trendContext').textContent=method+' · версия '+source.formVersion+
+    ' · алгоритм '+source.scoringAlgorithmVersion+
+    ' · записей: '+ordered.length+' (из загруженной истории)';
+  show('trend');
+}
+async function openRawTrend(){
+  if(state.busy||!state.authenticated)return;
+  const group=state.trendGroups.find(g=>g.key===el('trendVersion').value);
+  if(!group||group.entries.length<2)return;
+  const entries=group.entries.slice(0,TREND_LIMIT).reverse();
+  locked(true);setStatus('Читаю сохранённые результаты для динамики...');
+  try{
+    const results=await Promise.all(entries.map(e=>
+      api('/api/runs/'+encodeURIComponent(e.runId),'GET')));
+    renderRawTrend(group,results);setStatus('');
+  }catch(e){setStatus(e.message,true);}finally{locked(false);}
+}
+
 async function loadHistory(reset){
   const cursor=reset?null:state.historyCursor;
-  const url='/api/history'+(cursor?'?cursor='+encodeURIComponent(cursor):'');
-  const data=await api(url,'GET');
-  if(!Array.isArray(data.items))throw new Error('Неверный ответ истории');
+  const selected=el('historyFilter').value;
+  const query=new URLSearchParams({formKey:selected});
+  if(cursor)query.set('cursor',cursor);
+  const data=await api('/api/history?'+query.toString(),'GET');
+  if(!Array.isArray(data.items)||data.formKeyFilter!==selected)
+    throw new Error('Неверный ответ истории или фильтра');
   const list=el('historyList');
-  if(reset)list.replaceChildren();
+  if(reset){list.replaceChildren();state.historySelections=[];state.historyEntries=[];}
+  state.historyEntries.push(...data.items);
   data.items.forEach(entry=>{
     const li=document.createElement('li'),info=document.createElement('div');
     const date=document.createElement('strong'),meta=document.createElement('p');
     date.textContent=prettyDate(entry.completedAt);
-    meta.className='muted';meta.textContent='Версия формы: '+entry.formVersion+' · Завершён';
+    const method=entry.formKey==='ONET_SHORT_60_DIGITAL'?'RIASEC · 60':
+      entry.formKey==='UALP_WV21_RU_LIKERT'?'Work Values · 21':null;
+    if(!method)throw new Error('Неизвестная методика в истории');
+    meta.className='muted';meta.textContent=method+' · Версия: '+entry.formVersion+' · Завершён';
     info.append(date,meta);
     const open=document.createElement('button');open.type='button';open.textContent='Открыть';
-    open.setAttribute('aria-label','Открыть результат за '+date.textContent);
+    open.setAttribute('aria-label','Открыть '+method+' за '+date.textContent);
     open.onclick=async()=>{
       if(state.busy)return;
       locked(true);setStatus('Загружаю сохранённый результат...');
@@ -181,13 +731,165 @@ async function loadHistory(reset){
         state.fromHistory=true;displayResult(out);setStatus('');
       }catch(e){setStatus(e.message,true);}finally{locked(false);}
     };
-    li.append(info,open);list.appendChild(li);
+    const select=document.createElement('button');select.type='button';
+    select.dataset.compareRun=entry.runId;
+    select.textContent='Выбрать для сравнения';
+    select.setAttribute('aria-pressed','false');
+    select.onclick=()=>chooseForComparison(entry);
+    const actions=document.createElement('div');actions.className='actions';
+    actions.append(open,select);
+    li.append(info,actions);list.appendChild(li);
   });
   state.historyCursor=data.nextCursor||null;
   el('historyMore').hidden=!state.historyCursor;
   el('historyEmpty').hidden=list.children.length!==0;
+  renderSelection();
+  renderTrendGroups();
 }
+const REPORT_FORMS={
+  UALP_WV21_RU_LIKERT:{name:'Work Values · 21',maximum:4,decimals:2},
+  ONET_SHORT_60_DIGITAL:{name:'RIASEC · 60',maximum:40,decimals:0}
+};
+function clearReport(){
+  state.profileData=null;
+  el('reportText').value='';
+  el('reportPanel').hidden=true;
+}
+function buildOwnerReport(profile){
+  if(!profile||profile.ownerMode!=='SINGLE_OWNER_TEST'||!Array.isArray(profile.methods)||
+     profile.methods.length>12)throw Error('Неверный формат сохранённого профиля');
+  const parts=[
+    'UALP — личная исследовательская сводка (TEST)',
+    'Источник: сохранённый профиль PostgreSQL; без нового тестирования.',
+    'Числа — только исходные оценки, не нормы, IQ, диагнозы или рекомендации.',
+    'Переводы и методики имеют экспериментальный статус.',
+    ''
+  ];
+  let methods=0;
+  for(const method of profile.methods){
+    const meta=REPORT_FORMS[method.formKey];
+    if(!meta)continue;
+    if(!Number.isInteger(method.completedRuns)||method.completedRuns<1||
+       typeof method.formVersion!=='string'||!method.formVersion||
+       typeof method.scoringAlgorithmVersion!=='string'||!method.scoringAlgorithmVersion||
+       typeof method.validationStatus!=='string'||
+       !Number.isFinite(Date.parse(method.latestAt))||
+       !Array.isArray(method.parentScores)||method.parentScores.length!==6)
+       throw Error('Неполные метаданные для сводки');
+    const scores=new Set(),keys=new Set();
+    const lines=[];
+    for(const scale of method.parentScores){
+      const val=Number(scale.mean);
+      if(typeof scale.scaleId!=='string'||!scale.scaleId||scores.has(scale.scaleId)||
+         typeof scale.key!=='string'||!scale.key||keys.has(scale.key)||
+         typeof scale.label!=='string'||!scale.label||
+         !Number.isFinite(val)||val<0||val>meta.maximum||
+         !Number.isInteger(scale.answered)||scale.answered<1)
+         throw Error('Неверные исходные значения шкал');
+      scores.add(scale.scaleId);keys.add(scale.key);
+      lines.push(scale.label+' ('+scale.key+'): '+
+        val.toFixed(meta.decimals)+' / '+meta.maximum);
+    }
+    parts.push(meta.name);
+    parts.push('Прохождений: '+method.completedRuns);
+    parts.push('Последнее: '+prettyDate(method.latestAt));
+    parts.push('Версия формы: '+method.formVersion);
+    parts.push('Алгоритм: '+method.scoringAlgorithmVersion);
+    parts.push('Статус проверки: '+method.validationStatus);
+    parts.push(...lines,'');
+    methods++;
+  }
+  if(!methods)parts.push('Завершённых поддерживаемых методик пока нет.','');
+  parts.push('Сравнение оценок разных методик напрямую недопустимо.');
+  const text=parts.join('\n');
+  if(text.length>8500)throw Error('Сводка превышает безопасный размер');
+  return text;
+}
+// Owner-only progress is derived from the same read-only /api/profile snapshot.
+// No occupation score, ability judgment, stored learning plan or new canonical data.
+function readRoadmapProgress(data){
+  if(!data||data.ownerMode!=='SINGLE_OWNER_TEST'||!Array.isArray(data.methods)||
+     data.methods.length>12||!Number.isInteger(data.methodCount)||data.methodCount<0||
+     !Number.isInteger(data.completedRuns)||data.completedRuns<0||
+     typeof data.hasMoreMethods!=='boolean')throw Error('Недостоверный ответ профиля');
+  const seen=new Set(),counts={UALP_WV21_RU_LIKERT:0,ONET_SHORT_60_DIGITAL:0};
+  let sumRuns=0;
+  for(const m of data.methods){
+    if(!m||typeof m.formKey!=='string'||seen.has(m.formKey)||
+       !Number.isSafeInteger(m.completedRuns)||m.completedRuns<1)
+      throw Error('Несовместимый список завершённых методик');
+    seen.add(m.formKey);
+    sumRuns+=m.completedRuns;
+    if(Object.prototype.hasOwnProperty.call(counts,m.formKey))
+      counts[m.formKey]=m.completedRuns;
+  }
+  // /api/profile reports counts for the returned bounded method list, not unseen rows.
+  // Reject mismatched totals rather than displaying a fabricated completed route.
+  if(data.methodCount!==seen.size||!Number.isSafeInteger(sumRuns)||
+     data.completedRuns!==sumRuns)
+    throw Error('Несогласованные количества завершённых тестов');
+  return {
+    workValues:counts.UALP_WV21_RU_LIKERT,
+    riasec:counts.ONET_SHORT_60_DIGITAL,
+    hasProfile:data.completedRuns>0,
+    canCompare:Math.max(...Object.values(counts))>=2
+  };
+}
+function renderRoadmap(data){
+  const progress=readRoadmapProgress(data);
+  const completed=Number(progress.workValues>0)+Number(progress.riasec>0);
+  const summary=el('routeSummary');summary.replaceChildren();
+  for(const label of ['Пройдено методик текущего пилота: '+completed+' из 2',
+                       'Завершённых прохождений: '+data.completedRuns]){
+    const span=document.createElement('span');span.textContent=label;summary.append(span);
+  }
+  const stages=[
+    {
+      title:'1. Исследование интересов и рабочих ценностей',
+      state:completed===2?'Оба теста пройдены':'Ещё не все тесты пройдены',
+      detail:'Work Values: '+(progress.workValues?progress.workValues+' прохожд.':'нет прохождения')+
+        '. RIASEC: '+(progress.riasec?progress.riasec+' прохожд.':'нет прохождения')+
+        '. Методики экспериментальные и не валидированы.'
+    },
+    {
+      title:'2. Сохранённый личный профиль',
+      state:progress.hasProfile?'Доступен':'Пока нет результатов',
+      detail:progress.hasProfile
+        ?'Можно открыть сохранённые исходные показатели; карьерные рекомендации не рассчитаны.'
+        :'После первого завершённого теста появятся сохранённые показатели.'
+    },
+    {
+      title:'3. Повторное прохождение и сравнение',
+      state:progress.canCompare?'Есть повторные прохождения':'Пока недостаточно прохождений',
+      detail:progress.canCompare
+        ?'В истории можно выбрать две записи одной методики, если их версии и алгоритм совпадают.'
+        :'Сравнение появится при наличии двух прохождений одной методики и одинаковых версий.'
+    },
+    {
+      title:'4. Дополнительная методика ICAR-16',
+      state:'Не запущена в текущем TEST-интерфейсе',
+      detail:'Источник, права, правила оценивания и точность должны пройти отдельную проверку. IQ и процентили не рассчитываются.'
+    },
+    {
+      title:'5. Соответствие профессиям и обучение',
+      state:'Ещё не реализовано',
+      detail:'Подбор ролей, пробелов в навыках и заданий потребует отдельной проверенной базы профессий и согласованных правил. Автоматических рекомендаций сейчас нет.'
+    }
+  ];
+  const host=el('routeStages');host.replaceChildren();
+  for(const stage of stages){
+    const card=document.createElement('section');card.className='route-stage';
+    const heading=document.createElement('h3');heading.textContent=stage.title;
+    const status=document.createElement('p');status.className='stage-status';status.textContent=stage.state;
+    const detail=document.createElement('p');detail.className='muted';detail.textContent=stage.detail;
+    card.append(heading,status,detail);host.append(card);
+  }
+  show('roadmap');
+}
+
 function showProfile(data){
+  clearReport();
+  state.profileData=data;
   if(!Array.isArray(data.methods))throw new Error('Неверный формат профиля');
   const summary=el('profileSummary');summary.replaceChildren();
   const methods=document.createElement('span');methods.textContent='Методик пройдено: '+data.methodCount;
@@ -257,28 +959,59 @@ function showProfile(data){
   show('profile');
 }
 el('consent').onchange=()=>locked(state.busy);
+el('preferencesSave').onclick=savePreferences;
+el('preferencesEdit').onclick=()=>{
+  if(!state.authenticated||state.busy)return;
+  state.preferencesEditing=true;renderPreferences();setStatus('');
+};
 el('login').onclick=async()=>{
   if(state.busy)return;
   if(!el('access').value){setStatus('Введи ключ доступа.',true);return;}
   locked(true);setStatus('Выполняю вход...');
+  let keyAccepted=false;
   try{
-    await api('/api/session','POST',{remember:el('remember').checked},el('access').value);
-    el('access').value='';
-    // Verify cookie acceptance instead of showing a successful but unusable login.
-    await api('/api/session','GET');state.authenticated=true;setStatus('Вход выполнен.');
-  }catch(e){state.authenticated=false;setStatus(e.message,true);}finally{locked(false);}
+    const remembered=el('remember').checked;
+    const loginResult=await api('/api/session','POST',{remember:remembered},el('access').value);
+    if(loginResult.remembered!==remembered)throw new Error('Сервер не подтвердил режим запоминания.');
+    keyAccepted=true;
+    // Confirm the browser actually sends the issued cookie on the next same-host request.
+    await api('/api/session','GET');
+    state.authenticated=true;
+    el('access').value=''; // Clear the sensitive key only after cookie verification succeeded.
+    restorePreferences();
+    renderDraftResumes();
+    setStatus(remembered?'Вход сохранён на 30 дней в этом браузере. Открывай этот же TEST-адрес.':'Вход выполнен без запоминания устройства.');
+  }catch(e){
+    state.authenticated=false;
+    if(keyAccepted){
+      setStatus('Ключ ПРИНЯТ сервером, но браузер не подтвердил сессию (SESSION_COOKIE_CHECK_FAILED). Ключ остаётся в поле — повторно вводить его не нужно. Открой этот же TEST-адрес напрямую в Chrome; если проблема повторится, сообщи код ошибки без ключа.',true);
+    }else{
+      setStatus('Запрос входа не принят (LOGIN_REQUEST_FAILED). '+e.message+' Ключ остаётся в поле, не вводи его заново — проверь адрес TEST и нажми «Войти» ещё раз.',true);
+    }
+  }finally{locked(false);}
 };
 el('access').onkeydown=(e)=>{if(e.key==='Enter')el('login').click();};
 el('logout').onclick=async()=>{
   if(state.busy)return;
   if(state.form&&Object.keys(state.answers).length&& !el('questions').hidden
-      &&!confirm('Выйти? Незавершённые ответы будут потеряны.'))return;
+      &&!confirm('Выйти? Все локальные черновики и незавершённые ответы будут удалены.'))return;
   locked(true);setStatus('Выход...');
   try{
-    await api('/api/session','DELETE');state.authenticated=false;
-    locked(false);home();el('remember').checked=false;setStatus('Вход на этом устройстве удалён.');
+    await api('/api/session','DELETE');eraseAllDrafts();clearPreferences();state.authenticated=false;
+    locked(false);home();el('remember').checked=true;setStatus('Вход на этом устройстве удалён.');
   }catch(e){setStatus('Не удалось выйти. '+e.message,true);}finally{locked(false);}
 };
+el('roadmapOpen').onclick=async()=>{
+  if(state.busy||!state.authenticated)return;
+  locked(true);setStatus('Проверяю сохранённые этапы...');
+  try{
+    const profile=await api('/api/profile','GET');
+    renderRoadmap(profile);setStatus('');
+  }catch(e){setStatus(e.message,true);}finally{locked(false);}
+};
+el('roadmapProfile').onclick=()=>{if(!state.busy)el('profileOpen').click();};
+el('roadmapHistory').onclick=()=>{if(!state.busy)el('historyOpen').click();};
+el('roadmapHome').onclick=home;
 el('profileOpen').onclick=async()=>{
   if(state.busy||!state.authenticated)return;
   locked(true);setStatus('Собираю сохранённый профиль...');
@@ -286,6 +1019,38 @@ el('profileOpen').onclick=async()=>{
     const data=await api('/api/profile','GET');
     showProfile(data);el('access').value='';state.fromProfile=true;setStatus('');
   }catch(e){setStatus(e.message,true);}finally{locked(false);}
+};
+el('profileReport').onclick=()=>{
+  if(state.busy||!state.authenticated||!state.profileData)return;
+  try{
+    const report=buildOwnerReport(state.profileData);
+    el('reportText').value=report;
+    el('reportPanel').hidden=false;
+    setStatus('Сводка сформирована локально. В буфер обмена ничего не записано.');
+  }catch(e){
+    el('reportText').value='';
+    el('reportPanel').hidden=true;
+    setStatus('Невозможно сформировать сводку: '+e.message,true);
+  }
+};
+el('copyReport').onclick=async()=>{
+  if(state.busy||!state.authenticated||el('reportPanel').hidden||!el('reportText').value)return;
+  const report=el('reportText').value;
+  try{
+    if(!navigator.clipboard||!navigator.clipboard.writeText)throw Error('clipboard unavailable');
+    await navigator.clipboard.writeText(report);
+    setStatus('Сводка скопирована. Помни, что она содержит личные результаты.');
+  }catch(_){
+    el('reportText').focus();
+    el('reportText').select();
+    setStatus('Автоматическое копирование запрещено браузером. Текст выделен — выбери «Копировать» вручную.',true);
+  }
+};
+el('hideReport').onclick=()=>{
+  if(state.busy)return;
+  el('reportPanel').hidden=true;
+  el('reportText').value='';
+  setStatus('Сводка скрыта и очищена с экрана.');
 };
 el('profileHome').onclick=home;
 el('profileHistory').onclick=async()=>{
@@ -307,6 +1072,20 @@ el('historyOpen').onclick=async()=>{
     el('historyProfile').hidden=true;show('history');setStatus('');
   }catch(e){setStatus(e.message,true);}finally{locked(false);}
 };
+el('historyFilter').onchange=async()=>{
+  if(state.busy)return;
+  locked(true);setStatus('Применяю фильтр истории...');
+  try{await loadHistory(true);setStatus('');}
+  catch(e){setStatus(e.message,true);}finally{locked(false);}
+};
+el('historyCompare').onclick=compareSelectedRuns;
+el('historyTrend').onclick=openRawTrend;
+el('trendHistory').onclick=()=>{if(!state.busy){show('history');setStatus('');}};
+el('trendHome').onclick=home;
+el('compareHistory').onclick=()=>{
+  if(state.busy)return;show('history');setStatus('');
+};
+el('compareHome').onclick=home;
 el('historyMore').onclick=async()=>{
   if(state.busy||!state.historyCursor)return;
   locked(true);setStatus('Загружаю следующую страницу...');
@@ -317,35 +1096,48 @@ el('resultHome').onclick=home;
 el('resultHistory').onclick=()=>{if(!state.busy&&state.fromHistory){show('history');setStatus('');}};
 async function startAssessment(formKey){
   if(state.busy||!el('consent').checked||!state.authenticated)return;
+  const old=readDraft(formKey);
+  if(old&&!confirm('Есть незавершённый черновик этой методики. Удалить его и начать заново?'))return;
   locked(true);setStatus('Загружаю вопросы...');
   try{
     state.form=await api('/api/forms/'+encodeURIComponent(formKey),'GET');
     if(state.form.formKey!==formKey||!Array.isArray(state.form.items)||!state.form.items.length)
       throw new Error('Сервер вернул неожиданную форму');
+    if(old)eraseDraft(formKey);
     state.answers={};state.index=0;state.fromHistory=false;state.fromProfile=false;
-    state.requestId=newId();el('access').value='';render();setStatus('');
+    state.requestId=newId();state.draftEnabled=el('draftOptIn').checked;
+    el('access').value='';render();setStatus('');
   }catch(e){setStatus(e.message,true);}finally{locked(false);}
 }
 el('start').onclick=()=>startAssessment('UALP_WV21_RU_LIKERT');
 el('startRiasec').onclick=()=>startAssessment('ONET_SHORT_60_DIGITAL');
-el('previous').onclick=()=>{if(!state.busy&&state.index>0){state.index--;render();}};
+el('previous').onclick=()=>{if(!state.busy&&state.index>0){state.index--;render();if(state.draftEnabled)saveDraft();}};
+el('questionHome').onclick=()=>{
+  if(state.busy)return;
+  if(state.draftEnabled&&Object.keys(state.answers).length&&!saveDraft()&&
+     !confirm('Не удалось сохранить черновик. Вернуться на главную и потерять ответы?'))return;
+  if(!state.draftEnabled&&Object.keys(state.answers).length&&
+     !confirm('Автосохранение выключено. Вернуться на главную и потерять ответы?'))return;
+  home();
+};
 el('next').onclick=async()=>{
   if(state.busy)return;
   const current=state.form.items[state.index];
   if(!state.answers[current.itemId]){setStatus('Выберите один вариант ответа.',true);return;}
-  if(state.index<state.form.items.length-1){state.index++;render();setStatus('');return;}
+  if(state.index<state.form.items.length-1){state.index++;render();setStatus('');if(state.draftEnabled)saveDraft();return;}
   const answers=state.form.items.map(i=>({itemId:i.itemId,optionKey:state.answers[i.itemId]}));
   if(answers.some(x=>!x.optionKey)){setStatus('Ответьте на каждый вопрос.',true);return;}
   locked(true);setStatus('Записываю ответы и рассчитываю результат...');
   try{
     const out=await api('/api/runs','POST',{requestId:state.requestId,formKey:state.form.formKey,consent:true,answers});
+    eraseDraft(state.form.formKey);
     state.fromHistory=false;state.fromProfile=false;displayResult(out);
     setStatus('Сохранено. Профиль и другие тесты доступны на главной.');
   }catch(e){setStatus(e.message,true);}finally{locked(false);}
 };
 async function restoreSession(){
   locked(true);
-  try{await api('/api/session','GET');state.authenticated=true;setStatus('Вход восстановлен.');}
+  try{await api('/api/session','GET');state.authenticated=true;restorePreferences();renderDraftResumes();setStatus('Вход восстановлен.');}
   catch(e){state.authenticated=false;setStatus(e.message.includes('Вход не выполнен')?'':e.message,true);}
   finally{locked(false);}
 }

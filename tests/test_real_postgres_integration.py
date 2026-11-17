@@ -6,6 +6,7 @@ respondent data is present. The DB is a local PostgreSQL service container.
 import concurrent.futures
 import os
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 import psycopg
@@ -13,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 from psycopg.conninfo import conninfo_to_dict
 
-from webapp.main import app, ENABLED_FORM
+from webapp.main import app, ENABLED_FORM, OWNER_RIASEC_VERSION
 
 FORM = "CI-FORM-ONLY"
 KEY = "CI_ONLY_SYNTHETIC_ACCESS_KEY_1234567890123456"
@@ -145,6 +146,11 @@ def test_02_actual_postgres_transaction_retry_conflict(api, isolated_postgres):
     assert first.status_code == 201, first.text
     result = first.json()
     assert result["status"] == "COMPLETED"
+    assert result["formKey"] == ENABLED_FORM
+    assert result["formVersion"] == "ci-v1"
+    assert result["validationStatus"] == "NOT_REVIEWED"
+    assert datetime.fromisoformat(result["recordedAt"]).tzinfo is not None
+    assert "answers" not in first.text and "optionKey" not in first.text
     assert len(result["scores"]) == 6
     assert counts(isolated_postgres) == (1, 21, 27)
 
@@ -529,6 +535,11 @@ def test_08_riasec_complete_http_atomic_idempotency_under_ci_guard(
     assert saved.status_code == 201, saved.text
     out = saved.json()
     assert out["status"] == "COMPLETED"
+    assert out["formKey"] == key
+    assert out["formVersion"] == "synthetic-only"
+    assert out["validationStatus"] == "NOT_REVIEWED"
+    assert datetime.fromisoformat(out["recordedAt"]).tzinfo is not None
+    assert "answers" not in saved.text and "optionKey" not in saved.text
     assert out["scoringAlgorithmVersion"] == "RIASEC-SUM-v1"
     scores = {s["key"]: int(s["mean"]) for s in out["scores"]}
     assert scores == {"R": 0, "I": 10, "A": 20, "S": 30, "E": 40, "C": 0}
@@ -835,6 +846,12 @@ def test_10_private_source_locked_riasec_http_in_ephemeral_ci(
     saved = api.post("/api/runs",json=request,headers=headers())
     assert saved.status_code == 201, saved.text
     out = saved.json()
+    assert out["status"] == "COMPLETED"
+    assert out["formKey"] == real_key
+    assert out["formVersion"] == server.OWNER_RIASEC_VERSION
+    assert out["validationStatus"] == "NOT_REVIEWED"
+    assert datetime.fromisoformat(out["recordedAt"]).tzinfo is not None
+    assert "answers" not in saved.text and "optionKey" not in saved.text
     assert out["scoringAlgorithmVersion"] == "RIASEC-SUM-v1"
     assert {x["key"]:int(x["mean"]) for x in out["scores"]} == {
         "R":0, "I":10, "A":20, "S":30, "E":40, "C":0
@@ -855,6 +872,43 @@ def test_10_private_source_locked_riasec_http_in_ephemeral_ci(
     assert len(grouped[real_key]["parentScores"]) == 6
     assert grouped[ENABLED_FORM]["completedRuns"] == 14
     assert api.get("/api/runs/"+out["runId"],headers=headers()).status_code == 200
+
+    # History crosses existing real-form keys, not unrelated synthetic catalog rows.
+    before_history = counts(isolated_postgres)
+    assert api.get("/api/history", params={"formKey": "CI_PROFILE_EXTRA"},
+                   headers=headers()).status_code == 422
+    assert api.get("/api/history", params={"formKey": "ICAR16_DIGITAL"},
+                   headers=headers()).status_code == 422
+    assert api.get("/api/history", params={"formKey": "ALL"}).status_code == 401
+    riasec_history = api.get("/api/history", params={"formKey": real_key},
+                             headers=headers())
+    assert riasec_history.status_code == 200
+    assert riasec_history.json()["formKeyFilter"] == real_key
+    assert [x["runId"] for x in riasec_history.json()["items"]] == [out["runId"]]
+    assert all(x["formKey"] == real_key for x in riasec_history.json()["items"])
+    default_history = api.get("/api/history", headers=headers())
+    assert default_history.status_code == 200
+    assert default_history.json()["formKeyFilter"] == ENABLED_FORM
+    assert all(x["formKey"] == ENABLED_FORM for x in default_history.json()["items"])
+    combined_1 = api.get("/api/history", params={"formKey": "ALL"},
+                         headers=headers())
+    assert combined_1.status_code == 200, combined_1.text
+    assert len(combined_1.json()["items"]) == 10
+    assert combined_1.json()["nextCursor"]
+    combined_2 = api.get("/api/history", params={
+        "formKey": "ALL", "cursor": combined_1.json()["nextCursor"],
+    }, headers=headers())
+    assert combined_2.status_code == 200, combined_2.text
+    combined_entries = combined_1.json()["items"] + combined_2.json()["items"]
+    assert len(combined_entries) == 15
+    assert len({x["runId"] for x in combined_entries}) == 15
+    assert {x["formKey"] for x in combined_entries} == {real_key, ENABLED_FORM}
+    assert out["runId"] in {x["runId"] for x in combined_entries}
+    assert combined_2.json()["nextCursor"] is None
+    for response in (riasec_history, default_history, combined_1, combined_2):
+        for secret_field in ("answers", "optionKey", "payload_sha256", "raw_score"):
+            assert secret_field not in response.text
+    assert counts(isolated_postgres) == before_history
 
     # Disabling private gate affects new reads and writes, not saved Work Values.
     monkeypatch.setattr(server, "_owner_riasec_allowed",
