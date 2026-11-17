@@ -161,6 +161,17 @@ const assert=require('node:assert/strict');
  assert.match(await page.locator('#routeStages').innerText(),/Пока нет результатов/);
  await page.locator('#roadmapHome').click();
  reportProfile.methods=originalMethods;reportProfile.methodCount=2;reportProfile.completedRuns=3;
+ // A corrupted or stale aggregate must be rejected instead of being presented as real progress.
+ reportProfile.completedRuns=4;
+ await page.locator('#roadmapOpen').click();
+ await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Несогласованные количества'));
+ assert(await page.locator('#roadmap').isHidden(),'Do not show invalid aggregate progress');
+ reportProfile.completedRuns=3;
+ reportProfile.methodCount=1;
+ await page.locator('#roadmapOpen').click();
+ await page.waitForFunction(()=>document.getElementById('status').textContent.includes('Несогласованные количества'));
+ assert(await page.locator('#roadmap').isHidden(),'Do not accept wrong method count');
+ reportProfile.methodCount=2;
  await page.locator('#roadmapOpen').click();
  await page.locator('#roadmap').waitFor({state:'visible'});
  await page.locator('#roadmapProfile').click();
