@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- index.html | UALP 0.4.5-run-diff-test -->
+<!-- index.html | UALP 0.4.6-owner-report-test -->
 <html lang="ru">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>UALP — PostgreSQL TEST</title>
@@ -27,6 +27,7 @@ progress{width:100%;height:12px;accent-color:#245fac}
 .profile-metrics{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}.profile-metrics span{background:#eef3fc;border-radius:10px;padding:9px 13px;font-size:.91rem}.profile-method{border:1px solid #dce3ed;border-radius:12px;padding:15px;margin:15px 0}.profile-method h3{font-size:1.08rem;margin:0 0 7px}.profile-method .muted{margin:5px 0 12px}.profile-row{display:grid;grid-template-columns:minmax(100px,1fr) 85px 45px;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #eef1f5}.profile-row meter{width:100%;height:15px}.profile-pending{border-top:1px solid #e6eaf1;padding-top:10px;margin-top:14px}
 .compare-row{display:grid;grid-template-columns:minmax(110px,1fr) 55px 55px 62px;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid #e6eaf1}
 .compare-heading{font-size:.85rem;color:#64758a;font-weight:600}
+.report-text{width:100%;min-height:260px;resize:vertical;border:1px solid #acbbd0;border-radius:10px;padding:13px;font:0.86rem/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
 .compare-row .score{text-align:right;font-variant-numeric:tabular-nums}
 .history-list{list-style:none;margin:16px 0;padding:0}.history-list li{border-bottom:1px solid #e6eaf1;padding:14px 0;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.history-list .muted{margin:6px 0 0}button:focus-visible,input:focus-visible{outline:3px solid #ffb548;outline-offset:2px}
 [hidden]{display:none!important}
@@ -71,6 +72,13 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <div class="profile-metrics" id="profileSummary" aria-live="polite"></div>
 <div id="profileMethods"></div>
 <p class="muted profile-pending" id="profilePending"></p>
+<div class="actions"><button id="profileReport">Подготовить сводку</button></div>
+<div id="reportPanel" hidden>
+  <p class="muted">Личная копия исходных баллов без интерпретаций. Текст появится только после нажатия. Копирование передаёт данные в буфер обмена устройства; не вставляй их в чужие чаты и приложения.</p>
+  <label for="reportText">Сводка для копирования</label>
+  <textarea class="report-text" id="reportText" readonly spellcheck="false" rows="15"></textarea>
+  <div class="actions"><button id="copyReport">Копировать текст</button><button id="hideReport">Скрыть сводку</button></div>
+</div>
 <div class="actions"><button id="profileHome">На главную</button><button id="profileHistory">История тестов</button></div>
 </section>
 <section class="card" id="history" hidden>
@@ -110,12 +118,12 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <div class="actions"><button id="resultHome">На главную</button><button id="resultHistory" hidden>К истории</button><button id="resultProfile" hidden>К профилю</button></div>
 </section>
 <p id="status" role="status" aria-live="polite"></p>
-<p class="muted" id="buildVersion">UALP 0.4.5-run-diff-test · TEST · мобильный/настольный веб</p>
+<p class="muted" id="buildVersion">UALP 0.4.6-owner-report-test · TEST · мобильный/настольный веб</p>
 <script>
 (function(){
 'use strict';
 const el=(id)=>document.getElementById(id);
-const state={authenticated:false,form:null,answers:{},index:0,busy:false,requestId:'',draftEnabled:false,preferencesSaved:false,preferencesEditing:false,historyCursor:null,historySelections:[],fromHistory:false,fromProfile:false,historyFromProfile:false};
+const state={authenticated:false,form:null,answers:{},index:0,busy:false,requestId:'',draftEnabled:false,preferencesSaved:false,preferencesEditing:false,profileData:null,historyCursor:null,historySelections:[],fromHistory:false,fromProfile:false,historyFromProfile:false};
 const setStatus=(s,error=false)=>{const p=el('status');p.textContent=s;p.className=error?'error':'muted';};
 const show=(id)=>{for(const x of ['welcome','questions','results','history','profile','compare'])el(x).hidden=x!==id;};
 const newId=()=>crypto.randomUUID();
@@ -124,7 +132,7 @@ function locked(v){
   el('start').disabled=v||!el('consent').checked||!state.preferencesSaved||!state.authenticated;
   el('startRiasec').disabled=v||!el('consent').checked||!state.preferencesSaved||!state.authenticated;
   el('historyOpen').disabled=v||!state.authenticated;el('profileOpen').disabled=v||!state.authenticated;
-  for(const id of ['historyMore','next','previous','questionHome','logout','login','preferencesSave','preferencesEdit'])el(id).disabled=v;
+  for(const id of ['historyMore','next','previous','questionHome','logout','login','preferencesSave','preferencesEdit','profileReport','copyReport','hideReport'])el(id).disabled=v;
   el('historyCompare').disabled=v||state.historySelections.length!==2;
   el('historyFilter').disabled=v;
   el('loginFields').hidden=state.authenticated;el('signedIn').hidden=!state.authenticated;
@@ -338,6 +346,7 @@ function render(){
 }
 function home(){
   if(state.busy)return;
+  clearReport();
   state.form=null;state.answers={};state.index=0;state.requestId='';state.draftEnabled=false;
   state.historyCursor=null;state.historySelections=[];state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
   el('profileMethods').replaceChildren();el('profileSummary').replaceChildren();el('historyList').replaceChildren();el('scores').replaceChildren();el('reference').textContent='';el('access').value='';
@@ -510,7 +519,68 @@ async function loadHistory(reset){
   el('historyEmpty').hidden=list.children.length!==0;
   renderSelection();
 }
+const REPORT_FORMS={
+  UALP_WV21_RU_LIKERT:{name:'Work Values · 21',maximum:4,decimals:2},
+  ONET_SHORT_60_DIGITAL:{name:'RIASEC · 60',maximum:40,decimals:0}
+};
+function clearReport(){
+  state.profileData=null;
+  el('reportText').value='';
+  el('reportPanel').hidden=true;
+}
+function buildOwnerReport(profile){
+  if(!profile||profile.ownerMode!=='SINGLE_OWNER_TEST'||!Array.isArray(profile.methods)||
+     profile.methods.length>12)throw Error('Неверный формат сохранённого профиля');
+  const parts=[
+    'UALP — личная исследовательская сводка (TEST)',
+    'Источник: сохранённый профиль PostgreSQL; без нового тестирования.',
+    'Числа — только исходные оценки, не нормы, IQ, диагнозы или рекомендации.',
+    'Переводы и методики имеют экспериментальный статус.',
+    ''
+  ];
+  let methods=0;
+  for(const method of profile.methods){
+    const meta=REPORT_FORMS[method.formKey];
+    if(!meta)continue;
+    if(!Number.isInteger(method.completedRuns)||method.completedRuns<1||
+       typeof method.formVersion!=='string'||!method.formVersion||
+       typeof method.scoringAlgorithmVersion!=='string'||!method.scoringAlgorithmVersion||
+       typeof method.validationStatus!=='string'||
+       !Number.isFinite(Date.parse(method.latestAt))||
+       !Array.isArray(method.parentScores)||method.parentScores.length!==6)
+       throw Error('Неполные метаданные для сводки');
+    const scores=new Set(),keys=new Set();
+    const lines=[];
+    for(const scale of method.parentScores){
+      const val=Number(scale.mean);
+      if(typeof scale.scaleId!=='string'||!scale.scaleId||scores.has(scale.scaleId)||
+         typeof scale.key!=='string'||!scale.key||keys.has(scale.key)||
+         typeof scale.label!=='string'||!scale.label||
+         !Number.isFinite(val)||val<0||val>meta.maximum||
+         !Number.isInteger(scale.answered)||scale.answered<1)
+         throw Error('Неверные исходные значения шкал');
+      scores.add(scale.scaleId);keys.add(scale.key);
+      lines.push(scale.label+' ('+scale.key+'): '+
+        val.toFixed(meta.decimals)+' / '+meta.maximum);
+    }
+    parts.push(meta.name);
+    parts.push('Прохождений: '+method.completedRuns);
+    parts.push('Последнее: '+prettyDate(method.latestAt));
+    parts.push('Версия формы: '+method.formVersion);
+    parts.push('Алгоритм: '+method.scoringAlgorithmVersion);
+    parts.push('Статус проверки: '+method.validationStatus);
+    parts.push(...lines,'');
+    methods++;
+  }
+  if(!methods)parts.push('Завершённых поддерживаемых методик пока нет.','');
+  parts.push('Сравнение оценок разных методик напрямую недопустимо.');
+  const text=parts.join('\n');
+  if(text.length>8500)throw Error('Сводка превышает безопасный размер');
+  return text;
+}
 function showProfile(data){
+  clearReport();
+  state.profileData=data;
   if(!Array.isArray(data.methods))throw new Error('Неверный формат профиля');
   const summary=el('profileSummary');summary.replaceChildren();
   const methods=document.createElement('span');methods.textContent='Методик пройдено: '+data.methodCount;
@@ -629,6 +699,38 @@ el('profileOpen').onclick=async()=>{
     const data=await api('/api/profile','GET');
     showProfile(data);el('access').value='';state.fromProfile=true;setStatus('');
   }catch(e){setStatus(e.message,true);}finally{locked(false);}
+};
+el('profileReport').onclick=()=>{
+  if(state.busy||!state.authenticated||!state.profileData)return;
+  try{
+    const report=buildOwnerReport(state.profileData);
+    el('reportText').value=report;
+    el('reportPanel').hidden=false;
+    setStatus('Сводка сформирована локально. В буфер обмена ничего не записано.');
+  }catch(e){
+    el('reportText').value='';
+    el('reportPanel').hidden=true;
+    setStatus('Невозможно сформировать сводку: '+e.message,true);
+  }
+};
+el('copyReport').onclick=async()=>{
+  if(state.busy||!state.authenticated||el('reportPanel').hidden||!el('reportText').value)return;
+  const report=el('reportText').value;
+  try{
+    if(!navigator.clipboard||!navigator.clipboard.writeText)throw Error('clipboard unavailable');
+    await navigator.clipboard.writeText(report);
+    setStatus('Сводка скопирована. Помни, что она содержит личные результаты.');
+  }catch(_){
+    el('reportText').focus();
+    el('reportText').select();
+    setStatus('Автоматическое копирование запрещено браузером. Текст выделен — выбери «Копировать» вручную.',true);
+  }
+};
+el('hideReport').onclick=()=>{
+  if(state.busy)return;
+  el('reportPanel').hidden=true;
+  el('reportText').value='';
+  setStatus('Сводка скрыта и очищена с экрана.');
 };
 el('profileHome').onclick=home;
 el('profileHistory').onclick=async()=>{
