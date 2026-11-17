@@ -1,0 +1,47 @@
+name: UALP Android owner-only TEST APK
+
+on:
+  pull_request:
+    paths:
+      - "android/**"
+      - ".github/workflows/ualp-android-test-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - name: Install pinned Android SDK tools
+        run: |
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Build debug-signed owner TEST APK
+        run: gradle --project-dir android --no-daemon :app:assembleDebug
+      - name: Verify exact APK structure and signature
+        run: |
+          set -euo pipefail
+          apk="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$apk"
+          unzip -t "$apk" | tail -2
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | head -5
+          sha256sum "$apk"
+      - name: Publish private-owner TEST APK (temporary CI artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ualp-android-test-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
