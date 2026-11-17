@@ -23,7 +23,10 @@ const RIASEC='ONET_SHORT_60_DIGITAL', WV='UALP_WV21_RU_LIKERT';
  await page.route('**/api/runs',async route=>{
   submitted=route.request().postDataJSON();
   await route.fulfill({status:201,json:{scoringAlgorithmVersion:'RIASEC-SUM-v1',
-   runId:'synthetic-saved-run',scores:['R','I','A','S','E','C'].map(key=>({key,mean:10}))}});
+   runId:'synthetic-saved-run',formKey:'ONET_SHORT_60_DIGITAL',status:'COMPLETED',
+   formVersion:'synthetic-draft-v1',validationStatus:'NOT_REVIEWED',
+   recordedAt:'2026-11-17T10:00:00+00:00',
+   scores:['R','I','A','S','E','C'].map(key=>({key,mean:10}))}});
  });
  await page.goto(ROOT);
  await page.locator('#access').fill('synthetic-browser-only-access-key-000000000000');
@@ -85,6 +88,7 @@ const RIASEC='ONET_SHORT_60_DIGITAL', WV='UALP_WV21_RU_LIKERT';
   await page.locator('#next').click();
  }
  await page.locator('#results').waitFor({state:'visible'});
+ assert.match(await page.locator('#resultProvenance').innerText(),/synthetic-draft-v1/);
  assert(submitted&&submitted.requestId===requestId);
  assert.equal(submitted.answers.length,60);
  assert.equal(await page.evaluate(k=>localStorage.getItem(k),PREFIX+RIASEC),null);
