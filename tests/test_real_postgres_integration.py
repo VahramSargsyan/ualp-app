@@ -846,6 +846,12 @@ def test_10_private_source_locked_riasec_http_in_ephemeral_ci(
     saved = api.post("/api/runs",json=request,headers=headers())
     assert saved.status_code == 201, saved.text
     out = saved.json()
+    assert out["status"] == "COMPLETED"
+    assert out["formKey"] == real_key
+    assert out["formVersion"] == server.OWNER_RIASEC_VERSION
+    assert out["validationStatus"] == "NOT_REVIEWED"
+    assert datetime.fromisoformat(out["recordedAt"]).tzinfo is not None
+    assert "answers" not in saved.text and "optionKey" not in saved.text
     assert out["scoringAlgorithmVersion"] == "RIASEC-SUM-v1"
     assert {x["key"]:int(x["mean"]) for x in out["scores"]} == {
         "R":0, "I":10, "A":20, "S":30, "E":40, "C":0
