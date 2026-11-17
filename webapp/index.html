@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- index.html | UALP 0.4.4-consent-home-fix-test -->
+<!-- index.html | UALP 0.4.5-run-diff-test -->
 <html lang="ru">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>UALP — PostgreSQL TEST</title>
@@ -25,6 +25,9 @@ progress{width:100%;height:12px;accent-color:#245fac}
 .scores{list-style:none;padding:0}.scores li{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e6eaf1;padding:11px 0}
 .score{font-weight:700;font-variant-numeric:tabular-nums}
 .profile-metrics{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}.profile-metrics span{background:#eef3fc;border-radius:10px;padding:9px 13px;font-size:.91rem}.profile-method{border:1px solid #dce3ed;border-radius:12px;padding:15px;margin:15px 0}.profile-method h3{font-size:1.08rem;margin:0 0 7px}.profile-method .muted{margin:5px 0 12px}.profile-row{display:grid;grid-template-columns:minmax(100px,1fr) 85px 45px;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #eef1f5}.profile-row meter{width:100%;height:15px}.profile-pending{border-top:1px solid #e6eaf1;padding-top:10px;margin-top:14px}
+.compare-row{display:grid;grid-template-columns:minmax(110px,1fr) 55px 55px 62px;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid #e6eaf1}
+.compare-heading{font-size:.85rem;color:#64758a;font-weight:600}
+.compare-row .score{text-align:right;font-variant-numeric:tabular-nums}
 .history-list{list-style:none;margin:16px 0;padding:0}.history-list li{border-bottom:1px solid #e6eaf1;padding:14px 0;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.history-list .muted{margin:6px 0 0}button:focus-visible,input:focus-visible{outline:3px solid #ffb548;outline-offset:2px}
 [hidden]{display:none!important}
 </style></head>
@@ -79,9 +82,18 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <option value="UALP_WV21_RU_LIKERT">Work Values · 21</option>
 <option value="ONET_SHORT_60_DIGITAL">RIASEC · 60</option>
 </select>
+<p class="muted">Чтобы сравнить два завершённых прохождения, отметь их в списке. Сопоставляются только одна методика и одинаковые версии.</p>
+<div class="actions"><span id="compareSelectionStatus" role="status">Выбрано: 0 из 2</span><button id="historyCompare" disabled>Сравнить выбранные</button></div>
 <ul id="historyList" class="history-list"></ul>
 <p id="historyEmpty" class="muted" hidden>Сохранённых прохождений пока нет.</p>
 <div class="actions"><button id="historyHome">На главную</button><button id="historyProfile" hidden>К профилю</button><button id="historyMore" hidden>Показать ещё</button></div>
+</section>
+<section class="card" id="compare" hidden>
+<h2>Сравнение сохранённых результатов</h2>
+<p class="muted" id="compareContext"></p>
+<p class="notice">Только разница исходных баллов одной методики. Это не подтверждение развития навыков, профессиональной пригодности или статистически значимого изменения. Методики имеют экспериментальный статус.</p>
+<div id="compareRows" class="compare-rows"></div>
+<div class="actions"><button id="compareHistory">К истории</button><button id="compareHome">На главную</button></div>
 </section>
 <section class="card" id="questions" hidden>
 <p class="muted" id="position"></p><progress id="progress" value="0" max="21"></progress>
@@ -98,14 +110,14 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <div class="actions"><button id="resultHome">На главную</button><button id="resultHistory" hidden>К истории</button><button id="resultProfile" hidden>К профилю</button></div>
 </section>
 <p id="status" role="status" aria-live="polite"></p>
-<p class="muted" id="buildVersion">UALP 0.4.4-consent-home-fix-test · TEST · мобильный/настольный веб</p>
+<p class="muted" id="buildVersion">UALP 0.4.5-run-diff-test · TEST · мобильный/настольный веб</p>
 <script>
 (function(){
 'use strict';
 const el=(id)=>document.getElementById(id);
-const state={authenticated:false,form:null,answers:{},index:0,busy:false,requestId:'',draftEnabled:false,preferencesSaved:false,preferencesEditing:false,historyCursor:null,fromHistory:false,fromProfile:false,historyFromProfile:false};
+const state={authenticated:false,form:null,answers:{},index:0,busy:false,requestId:'',draftEnabled:false,preferencesSaved:false,preferencesEditing:false,historyCursor:null,historySelections:[],fromHistory:false,fromProfile:false,historyFromProfile:false};
 const setStatus=(s,error=false)=>{const p=el('status');p.textContent=s;p.className=error?'error':'muted';};
-const show=(id)=>{for(const x of ['welcome','questions','results','history','profile'])el(x).hidden=x!==id;};
+const show=(id)=>{for(const x of ['welcome','questions','results','history','profile','compare'])el(x).hidden=x!==id;};
 const newId=()=>crypto.randomUUID();
 function locked(v){
   state.busy=v;
@@ -113,6 +125,7 @@ function locked(v){
   el('startRiasec').disabled=v||!el('consent').checked||!state.preferencesSaved||!state.authenticated;
   el('historyOpen').disabled=v||!state.authenticated;el('profileOpen').disabled=v||!state.authenticated;
   for(const id of ['historyMore','next','previous','questionHome','logout','login','preferencesSave','preferencesEdit'])el(id).disabled=v;
+  el('historyCompare').disabled=v||state.historySelections.length!==2;
   el('historyFilter').disabled=v;
   el('loginFields').hidden=state.authenticated;el('signedIn').hidden=!state.authenticated;
   el('logout').hidden=!state.authenticated;
@@ -326,9 +339,9 @@ function render(){
 function home(){
   if(state.busy)return;
   state.form=null;state.answers={};state.index=0;state.requestId='';state.draftEnabled=false;
-  state.historyCursor=null;state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
+  state.historyCursor=null;state.historySelections=[];state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
   el('profileMethods').replaceChildren();el('profileSummary').replaceChildren();el('historyList').replaceChildren();el('scores').replaceChildren();el('reference').textContent='';el('access').value='';
-  show('welcome');locked(false);renderDraftResumes();setStatus('');
+  show('welcome');locked(false);renderDraftResumes();renderSelection();setStatus('');
 }
 function displayResult(out){
   show('results');el('scores').replaceChildren();
@@ -353,6 +366,107 @@ function prettyDate(iso){
     year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'
   });
 }
+
+function renderSelection(){
+  const chosen=new Set(state.historySelections.map(e=>e.runId));
+  el('compareSelectionStatus').textContent='Выбрано: '+chosen.size+' из 2';
+  el('historyCompare').disabled=state.busy||chosen.size!==2;
+  el('historyList').querySelectorAll('button[data-compare-run]').forEach(b=>{
+    const selected=chosen.has(b.dataset.compareRun);
+    b.textContent=selected?'Убрать из сравнения':'Выбрать для сравнения';
+    b.setAttribute('aria-pressed',selected?'true':'false');
+  });
+}
+function chooseForComparison(entry){
+  if(state.busy||!state.authenticated)return;
+  const existing=state.historySelections.findIndex(e=>e.runId===entry.runId);
+  if(existing!==-1)state.historySelections.splice(existing,1);
+  else{
+    const first=state.historySelections[0];
+    if(first&&(first.formKey!==entry.formKey||
+        first.formVersion!==entry.formVersion||
+        first.scoringAlgorithmVersion!==entry.scoringAlgorithmVersion)){
+      setStatus('Можно сравнивать только два прохождения одной методики с одинаковой версией вопросов и алгоритма.',true);
+      return;
+    }
+    if(state.historySelections.length===2){
+      setStatus('Сначала убери одно из двух выбранных прохождений.',true);return;
+    }
+    state.historySelections.push(entry);
+  }
+  renderSelection();setStatus('');
+}
+function numericScoreRows(result,formKey){
+  if(!result||result.status!=='COMPLETED'||!Array.isArray(result.scores)||
+     result.scores.length!==6)throw Error('Неполный сохранённый результат');
+  const max=formKey==='ONET_SHORT_60_DIGITAL'?40:4;
+  const rows=new Map();
+  for(const score of result.scores){
+    const val=Number(score.mean);
+    if(typeof score.scaleId!=='string'||!score.scaleId||
+       typeof score.key!=='string'||!score.key||
+       !Number.isFinite(val)||val<0||val>max||
+       !Number.isInteger(score.answered)||score.answered<=0||
+       rows.has(score.scaleId))throw Error('Несовместимые сохранённые шкалы');
+    rows.set(score.scaleId,{key:score.key,label:score.label||score.key,
+      value:val,answered:score.answered});
+  }
+  return rows;
+}
+function renderComparison(older,newer,oldResult,newResult){
+  const a=numericScoreRows(oldResult,older.formKey);
+  const b=numericScoreRows(newResult,newer.formKey);
+  if(a.size!==b.size||[...a].some(([id,v])=>
+      !b.has(id)||b.get(id).key!==v.key||b.get(id).answered!==v.answered))
+    throw Error('Шкалы двух прохождений различаются, сравнение невозможно');
+  const method=older.formKey==='ONET_SHORT_60_DIGITAL'?'RIASEC':'Work Values';
+  el('compareContext').textContent=method+' · версия '+older.formVersion+
+    ' · алгоритм '+older.scoringAlgorithmVersion+
+    ' · было: '+prettyDate(older.completedAt)+
+    ' · стало: '+prettyDate(newer.completedAt);
+  const host=el('compareRows');host.replaceChildren();
+  const head=document.createElement('div');head.className='compare-row compare-heading';
+  for(const word of ['Шкала','Было','Стало','Разница']){
+    const span=document.createElement('span');span.textContent=word;head.append(span);
+  }
+  host.append(head);
+  for(const [id,oldScale] of [...a.entries()].sort((a,b)=>a[1].label.localeCompare(b[1].label,'ru'))){
+    const val=b.get(id);
+    const delta=Math.round((val.value-oldScale.value)*100)/100;
+    const decimals=older.formKey==='ONET_SHORT_60_DIGITAL'?0:2;
+    const row=document.createElement('div');row.className='compare-row';
+    for(const label of [oldScale.label,oldScale.value.toFixed(decimals),
+                       val.value.toFixed(decimals),
+                       (delta>0?'+':'')+delta.toFixed(decimals)]){
+      const span=document.createElement('span');
+      span.textContent=label;span.className='score';row.append(span);
+    }
+    row.firstElementChild.className='';host.append(row);
+  }
+  show('compare');
+}
+async function compareSelectedRuns(){
+  if(state.busy||!state.authenticated||state.historySelections.length!==2)return;
+  const pair=state.historySelections.slice().sort((a,b)=>
+    a.completedAt.localeCompare(b.completedAt)||a.runId.localeCompare(b.runId));
+  const [older,newer]=pair;
+  if(older.runId===newer.runId||older.formKey!==newer.formKey||
+     older.formVersion!==newer.formVersion||
+     older.scoringAlgorithmVersion!==newer.scoringAlgorithmVersion){
+    setStatus('Сравнение разных форм или версий недоступно.',true);return;
+  }
+  locked(true);setStatus('Загружаю два сохранённых результата...');
+  try{
+    const [before,after]=await Promise.all(pair.map(e=>
+      api('/api/runs/'+encodeURIComponent(e.runId),'GET')));
+    if(before.runId!==older.runId||after.runId!==newer.runId||
+       before.scoringAlgorithmVersion!==older.scoringAlgorithmVersion||
+       after.scoringAlgorithmVersion!==newer.scoringAlgorithmVersion)
+      throw Error('Результаты не совпадают с выбранными прохождениями');
+    renderComparison(older,newer,before,after);setStatus('');
+  }catch(e){setStatus(e.message,true);}finally{locked(false);}
+}
+
 async function loadHistory(reset){
   const cursor=reset?null:state.historyCursor;
   const selected=el('historyFilter').value;
@@ -362,7 +476,7 @@ async function loadHistory(reset){
   if(!Array.isArray(data.items)||data.formKeyFilter!==selected)
     throw new Error('Неверный ответ истории или фильтра');
   const list=el('historyList');
-  if(reset)list.replaceChildren();
+  if(reset){list.replaceChildren();state.historySelections=[];}
   data.items.forEach(entry=>{
     const li=document.createElement('li'),info=document.createElement('div');
     const date=document.createElement('strong'),meta=document.createElement('p');
@@ -382,11 +496,19 @@ async function loadHistory(reset){
         state.fromHistory=true;displayResult(out);setStatus('');
       }catch(e){setStatus(e.message,true);}finally{locked(false);}
     };
-    li.append(info,open);list.appendChild(li);
+    const select=document.createElement('button');select.type='button';
+    select.dataset.compareRun=entry.runId;
+    select.textContent='Выбрать для сравнения';
+    select.setAttribute('aria-pressed','false');
+    select.onclick=()=>chooseForComparison(entry);
+    const actions=document.createElement('div');actions.className='actions';
+    actions.append(open,select);
+    li.append(info,actions);list.appendChild(li);
   });
   state.historyCursor=data.nextCursor||null;
   el('historyMore').hidden=!state.historyCursor;
   el('historyEmpty').hidden=list.children.length!==0;
+  renderSelection();
 }
 function showProfile(data){
   if(!Array.isArray(data.methods))throw new Error('Неверный формат профиля');
@@ -534,6 +656,11 @@ el('historyFilter').onchange=async()=>{
   try{await loadHistory(true);setStatus('');}
   catch(e){setStatus(e.message,true);}finally{locked(false);}
 };
+el('historyCompare').onclick=compareSelectedRuns;
+el('compareHistory').onclick=()=>{
+  if(state.busy)return;show('history');setStatus('');
+};
+el('compareHome').onclick=home;
 el('historyMore').onclick=async()=>{
   if(state.busy||!state.historyCursor)return;
   locked(true);setStatus('Загружаю следующую страницу...');
