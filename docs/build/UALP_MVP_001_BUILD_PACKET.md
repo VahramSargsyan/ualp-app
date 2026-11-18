@@ -469,3 +469,23 @@ ROLLBACK: revert docs-only commit (or leave proposed branch unmerged); original 
 STOP_CONDITIONS: source/license ambiguity, production data changes, new migrations, unapproved public release or automated career inference.
 NEXT_BOUNDARY: offline verified O*NET 31.0 source-lock and reader only after separate instruction, then a distinct migration authorization if needed.
 AUTHORIZATION_END: contract/synthetic fixture verification receipt and report; STOP.
+
+
+### UALP-CAREER-KB-002 — source lock and offline reader (2026-11-18)
+CAPABILITY_ID: UALP-CAREER-KB-002 / CAREER_KB_SOURCE_LOCK_AND_OFFLINE_READER
+USER_RESULT: Offline reader for a bounded O*NET 31.0 occupation/essential-skill subset, verified on synthetic fixtures and designed to fail-closed on source drift; real-source import pending exact official files.
+WORKFLOW_MODE: IMPLEMENT_FEATURE (isolated offline developer tool), RISK_CLASS: L2 provenance/ingestion safety; no runtime changes.
+BASE_COMMIT: 8e98b8c38227ff6e4397a35daca4d3b7ce95f7b8
+OWNER_BRANCH: feature/ualp-career-kb-offline-reader-test (new branch; unaccepted owner UALP TEST branch untouched).
+SOURCE: Official O*NET Database 31.0 CSV release and dictionary; precise source acquisition blocked by network environment; do not treat the accompanying pseudo-manifest as an actual source lock.
+SCOPE: career_kb/offline_reader.py; tests/test_career_kb_offline_reader.py; direct source URLs/documentation; source-lock receipt. Explicitly no actual O*NET records, ratings or licenses imported into SQL or public app.
+SHARED_HOTSPOTS: Future role KB schema and assessment profile bridge only; current webapp, migrations, user data, scoring, Android and Vercel not changed.
+CANONICAL / SCHEMA_IMPACT: NONE. No new tables, IDs, statuses or personal scores. MIGRATION_PLAN: NOT_REQUIRED for isolated offline reader; any real database import demands separate backup, additive migration, rollback and owner authorization.
+REQUIRED_EVIDENCE: official source page and dictionary, 12 local synthetic pytest checks PASS, Python compile PASS; official CSV acquisition/hash/real-data readback NOT_RUN/BLOCKED. Read back exact GitHub commit.
+TEST_TARGET: LOCAL_ONLY; existing Neon/Vercel owner TEST untouched. No hosted candidate for this change.
+ROLLBACK: revert docs and isolated Python module/test; TEST owner head stays 3cf3378ce8b3256fc18e0e6bf8303cd21cc15a25.
+PAID_API_BUDGET: 0; EXECUTOR_PERMISSION: current assistant only; no Codex/CI-triggering PR/other executors.
+STOP_CONDITIONS: missing official source bytes; unknown license or provenance; migration/PROD needs; altered acceptance gate.
+STATUS: PARTIAL / LOCAL_TESTED / OFFICIAL_SOURCE_BYTES_BLOCKED.
+NEXT_BOUNDARY: independently acquire official CSV files, establish SHA256 and row readback, and run real offline subset; no PostgreSQL migration without separate permission.
+AUTHORIZATION_END: file/commit receipt and report, STOP.
