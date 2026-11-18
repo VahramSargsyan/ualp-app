@@ -628,3 +628,21 @@ EXPLICIT NOT_RUN: destructive restoration/replacement of active TEST from backup
 ROLLBACK: preserve verified pre-migration backup, do not apply disposable-only DROP to Neon; avoid deleting any populated Career tables. No active legacy data changed.
 COST: no new paid API or paid service; Free Neon branch capacity used, two extra branches retained until separately authorized cleanup.
 NEXT_BOUNDARY: separately bounded guarded, exact source-backed import into existing empty Career KB tables and readback, after reviewing suitable TEST transport. STOP.
+
+
+### UALP-CAREER-KB-008 — frozen O*NET source Neon TEST import (2026-11-18)
+CAPABILITY_ID: UALP-CAREER-KB-008 / NEON_TEST_EXACT_SOURCE_IMPORT
+USER_RESULT: import the previously reviewed 2 O*NET 31.0 technical professions and all 40 original source skill measurements into the existing seven empty Career KB tables on the authorized Neon Free UALP TEST; preserve 10 legacy assessment tables exactly and keep source content absent from the UI.
+MODE: IMPLEMENT_FEATURE (TEST-only additive source import); RISK_CLASS: L3; explicit owner "Начни" after 007 receipt announcing this bounded import block.
+BASE_COMMIT: 1aecc24f7fb97b3702ed49fd3473e2f1f2ea8052
+BRANCH: feature/ualp-career-kb-008-neon-test-import; owner Vahram; TEST: existing Neon project snowy-leaf-35157339 branch main as UALP TEST, database ualp_test; do not confuse Neon branch main with GitHub repo main.
+SCOPE: additive source-locked SQL adapter career_kb/neon_test_import_adapter.py (does not connect to DB), 13 unit tests, GitHub receipt and Build Packet. No writes to original localhost-only CI importer or candidate schema 007.
+CANONICAL_SOURCE: official O*NET Database 31.0 CSV ZIP SHA256 4d010c11479112c99fb44bd41890484259916b9093b83c3c614a77ab3c620f5d (run 44322510909), plan SHA256 78d8aed89a505bf04d4d5d73e609b327bede800694a89a15bab50965a6ec449d, source license CC BY 4.0, source attestation timestamp 2026-11-18T14:16:55+00:00.
+SOURCE_SCOPE: two U.S. O*NET-SOC occupations 15-2051.00 Data Scientists and 15-2051.01 Business Intelligence Analysts; 1 snapshot, 2 occupations+2 versions, 10 skills+10 versions, 2 scales, 40 measures, 39 OBSERVED and 1 SUPPRESSED/NULL. No user skill or fit claim.
+PRECHECK: existing seven Career KB tables empty after 007, assessment runs 2, responses 81, saved scale scores 33, other original table digests 10/10 identical to 007 backup. Create fresh COW pre-import branch backup, verify all 17 tables/legacy before writing.
+SAFETY: 008 exports one 19-statement transaction over Neon connector targeted to exact allowlisted project/branch/db/role, session-only gated plan SHA, transactional advisory lock, temp payload, 7 create-free INSERTs only; complete typed full-table source readback before commit. Existing CI localhost fence stays unchanged. Other/partial source rows fail closed.
+TESTS: local 13 pytest PASS + Python compile PASS + SHA/CRC real source PASS. Required Neon clone actual E2E: unarmed gate denied, injected failure rollbacks, exact insert, exact repeat NOOP, modified existing source refused, inherited assessment digests unchanged. Only then active Neon TEST atomic insert and postflight byte-level/row-equivalent readback.
+OUT_OF_SCOPE: changing 10 legacy tables/response values, schema changes, DDL drops, active TEST restore, PROD, Vercel/Android release, user API, career matching/recommendation, PR #7, GitHub main, external workers or paid API.
+MIGRATION/ROLLBACK: schema already installed via 007; 008 has no schema migration. Before commit SQL transaction aborts on error; after successful commit keep immutable source rows and separate pre-import COW branch, do not DROP populated tables; destructive removal or branch restore requires separate owner decision.
+COST: existing Neon Free branch capacity only; no new paid service, no Codex, no GitHub Actions.
+STOP: exact GitHub code/receipt checkpoint and real Neon TEST outcome; no automatic next block/PROD. NOT_RUN Vercel runtime, owner UAT and restore branch replacement.
