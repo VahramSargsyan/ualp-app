@@ -570,3 +570,23 @@ ROLLBACK: missing session gate DENIED, nonempty DENIED, empty after explicit syn
 ARTIFACT: 14439678097 expires 2026-11-25 15:16 UTC; receipt SHA `464224c4e427b454360023548c765e9edf682faca201dbc644733dd0598b81d7`. Details: docs/research/UALP_CAREER_KB_005_PG_REHEARSAL_RECEIPT.md.
 REPAIRS: initial YAML job context fixed; then negative tests strengthened; at most 2 meaningful repair cycles, no further run required.
 NOT_RUN: real source writer, Neon TEST/schema, backup/restore, Vercel, owner UAT, Android, PROD. STOP. No automatic permission to progress.
+
+
+### UALP-CAREER-KB-006 — Exact-source transactional Career KB importer, isolated PostgreSQL E2E (2026-11-18)
+CAPABILITY_ID: UALP-CAREER-KB-006 / FROZEN_SOURCE_TRANSACTIONAL_IMPORT
+USER_RESULT: A deterministic, fail-closed writer for the frozen 2026-11-18 O*NET 31.0 two-occupation subset (40 real source-skill measurements), with atomic failure behavior, concurrent idempotence and pre-existing data preservation in disposable PostgreSQL only.
+WORKFLOW_MODE: IMPLEMENT_FEATURE; RISK_CLASS: L3 (SQL writes confined to authorized disposable E2E instance only).
+BASE_COMMIT: 7d18fd3f0042de9ec57041dcdb14a068afd43bbb
+OWNER_BRANCH: feature/ualp-career-kb-transactional-import-once; TEST_TARGET: isolated one-time GitHub-hosted PostgreSQL 18 service on localhost.
+OWNER / TEST: Vahram, validation with no mobile UAT this block.
+AUTHORIZATION: user's "Начнем" in response to the explicit next bounded transactional-importer block, **not** authorization for Neon TEST, PROD, migration promotion, Codex or other paid services.
+SCOPE: career_kb/transactional_import.py; tests/test_career_kb_transactional_import.py; path-scoped one-run PostgreSQL Actions workflow; source-less integrity/receipt report; existing Build Packet extension.
+SHARED_HOTSPOTS: docs/migration_candidates/UALP_CAREER_KB_004_SCHEMA_CANDIDATE.sql, disposable rollback SQL and existing migrations/001_initial_postgres_test.sql are read unchanged, not deployed to Neon; the current Assessment/Owner TEST and PR #7 remain untouched.
+CANONICAL: verified exact O*NET Database 31.0 CSV hashes/receipt at run 44322510909; plan SHA256 78d8aed89a505bf04d4d5d73e609b327bede800694a89a15bab50965a6ec449d; original source archive is retrieved through read-only Actions artifact token, expires Nov25.
+MIGRATION_PLAN: no mutation of any persistent DB; proposed additive SQL tested only on fresh disposable PostgreSQL 18, with synthetic legacy baseline, explicit session gates, and guarded rollback after clearing disposable data. Neon TEST rollout is a separate permission, with backup/restore and exact checked commit.
+EXPECTED_EVIDENCE: official-source artifact readback, exact plan SHA validation, seeded real values 1 snapshot / 2 roles / 10 skills / 2 scales / 40 requirements (39 observed + 1 suppressed/null), 3 injected transaction failures leave 0 new records, concurrent first writes yield one INSERTED + one NOOP, conflicting existing record rejected, existing 10 assessment tables checksum unchanged, rollback disallows populated tables and removes empty ones. CI/job/receipt exact IDs must be recorded after execution.
+OUT_OF_SCOPE: public app endpoints, personal career suitability/skill inference, Armenian job-market extrapolation, source ZIP commit, Neon/TEST/PROD writes, Vercel/Android, main merge, package deployment.
+ROLLBACK: isolated branch revert; disposable PostgreSQL container destroyed after job, guarded cleanup only on disposable instance. No remote database restore required.
+PAID_API_BUDGET: 0; current assistant and one scoped GitHub Actions run only; additional executors prohibited. REPAIR_LIMIT: at most two evidence-producing repair cycles.
+STOP_CONDITIONS: upstream SHA drift, unsupported artifact permissions or expiry, source hash mismatch, SQL E2E fail, remote connection need, paid services, any new business decision.
+AUTHORIZATION_END: real-source transactional importer E2E receipt and checkpoint; STOP, future Neon TEST decision separate.

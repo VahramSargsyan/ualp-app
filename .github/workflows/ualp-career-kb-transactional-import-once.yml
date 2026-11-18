@@ -1,0 +1,85 @@
+name: UALP Career KB exact-source transactional import disposable PG E2E
+
+on:
+  push:
+    branches:
+      - feature/ualp-career-kb-transactional-import-once
+    paths:
+      - .github/workflows/ualp-career-kb-transactional-import-once.yml
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ualp-career-kb-006-import-once
+  cancel-in-progress: false
+
+jobs:
+  source-locked-transactional-import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      actions: read
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ephemeral_ci_only
+          POSTGRES_DB: ualp_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ualp_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      UALP_CI_MODE: EPHEMERAL_POSTGRES_CAREER_IMPORT
+      UALP_CI_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/ualp_ci
+      PGPASSWORD: ephemeral_ci_only
+      UALP_CAREER_PLAN_PATH: /tmp/ualp-career-kb-006/plan.json
+      UALP_CAREER_RECEIPT_PATH: /tmp/ualp-career-kb-006/transactional_import_receipt.json
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Exact source checkout without write credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate syntax and dependencies
+        run: |
+          python -m compileall -q career_kb tests/test_career_kb_transactional_import.py
+          pip install -r requirements-dev.txt
+      - name: Retrieve immutable source evidence artifact from original O-NET official-source run
+        uses: actions/download-artifact@v4
+        with:
+          name: ualp-onet31-one-shot-source-lock-evidence
+          run-id: 44322510909
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: /tmp/ualp-career-kb-006/official-evidence
+      - name: Generate exact read-only O-NET 31.0 plan from locked original raw CSVs
+        run: |
+          python -m career_kb.import_plan \
+            --source-dir /tmp/ualp-career-kb-006/official-evidence/sources \
+            --manifest /tmp/ualp-career-kb-006/official-evidence/receipt/source_lock.json \
+            --receipt /tmp/ualp-career-kb-006/official-evidence/receipt/acquisition_receipt.json \
+            --occupation-code 15-2051.00 \
+            --occupation-code 15-2051.01 \
+            --output /tmp/ualp-career-kb-006/plan.json
+          python -c 'from pathlib import Path; from career_kb.transactional_import import load_plan, PLAN_HASH; p=load_plan(Path("/tmp/ualp-career-kb-006/plan.json")); print("FROZEN_PLAN_PASS", PLAN_HASH, len(p["requirements"]))'
+      - name: Real PostgreSQL 18 atomic import, concurrent replay, negative tests and guarded rollback
+        run: python -m pytest -q -s tests/test_career_kb_transactional_import.py
+      - name: Save only bounded JSON receipt, no real source rows or secrets
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ualp-career-kb-006-transactional-import-e2e-receipt
+          path: /tmp/ualp-career-kb-006/transactional_import_receipt.json
+          retention-days: 7
+          if-no-files-found: warn
