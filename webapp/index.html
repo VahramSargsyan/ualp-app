@@ -43,6 +43,8 @@ progress{width:100%;height:12px;accent-color:#245fac}
 .route-stage p{margin:5px 0;line-height:1.5}
 .route-stage .stage-status{font-size:.84rem;font-weight:700;color:#315d87}
 .history-list{list-style:none;margin:16px 0;padding:0}.history-list li{border-bottom:1px solid #e6eaf1;padding:14px 0;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.history-list .muted{margin:6px 0 0}button:focus-visible,input:focus-visible{outline:3px solid #ffb548;outline-offset:2px}
+.career-skill{border:1px solid #dce3ed;border-radius:12px;padding:13px;margin:12px 0;background:#f8fafc}
+.career-skill h4{margin:6px 0}.career-skill p{margin:5px 0;line-height:1.5}
 [hidden]{display:none!important}
 </style></head>
 <body><main>
@@ -75,9 +77,16 @@ progress{width:100%;height:12px;accent-color:#245fac}
 </div>
 <div id="draftResumes" hidden aria-live="polite"></div>
 <p class="muted" id="welcomeHelp">Посмотреть предыдущие прохождения можно без нового теста: достаточно войти в приложение.</p>
-<div class="actions"><button id="roadmapOpen" disabled>Мой маршрут</button><button id="profileOpen" disabled>Мой профиль</button><button id="historyOpen" disabled>История тестов</button></div>
+<div class="actions"><button id="roadmapOpen" disabled>Мой маршрут</button><button id="profileOpen" disabled>Мой профиль</button><button id="historyOpen" disabled>История тестов</button><button id="careersOpen" disabled>Профессии O*NET</button></div>
 <div class="actions"><button class="primary" id="start" disabled>Начать Work Values · 21</button><button class="primary" id="startRiasec" disabled>Начать RIASEC · 60</button></div>
 <p class="muted" id="riasecWelcomeDisclaimer">RIASEC: O*NET Interest Profiler (USDOL/ETA), русский экспериментальный перевод, только для личного исследования. Ни O*NET, ни USDOL не одобряют UALP.</p>
+</section>
+<section class="card" id="careers" hidden>
+<h2>Профессии и навыки · O*NET 31.0</h2>
+<p class="notice">Два исследовательских примера из справочника профессий США. Это не оценка твоих способностей, не результаты тестирования и не подбор работы в Армении.</p>
+<div id="careerItems" aria-live="polite"></div><div id="careerDetail" hidden aria-live="polite"></div>
+<p class="muted">Источник: O*NET Database 31.0, USDOL/ETA. Выборка адаптирована UALP; O*NET не одобряет UALP. <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener noreferrer" target="_blank">CC BY 4.0</a>.</p>
+<div class="actions"><button id="careerHome">На главную</button></div>
 </section>
 <section class="card" id="roadmap" hidden>
 <h2>Мой маршрут развития</h2>
@@ -155,7 +164,7 @@ progress{width:100%;height:12px;accent-color:#245fac}
 <div class="actions"><button id="resultHome">На главную</button><button id="resultHistory" hidden>К истории</button><button id="resultProfile" hidden>К профилю</button></div>
 </section>
 <p id="status" role="status" aria-live="polite"></p>
-<p class="muted" id="buildVersion">UALP 0.5.0-raw-score-trends-test · TEST · мобильный/настольный веб</p>
+<p class="muted" id="buildVersion">UALP 0.5.1-career-kb-readonly-test · TEST · мобильный/настольный веб</p>
 <script>
 (function(){
 'use strict';
@@ -173,7 +182,7 @@ const show=(id)=>{
     el('trendRows').replaceChildren();
     el('trendContext').textContent='';
   }
-  for(const x of ['welcome','questions','results','history','profile','compare','roadmap','trend'])
+  for(const x of ['welcome','questions','results','history','profile','compare','roadmap','trend','careers'])
     el(x).hidden=x!==id;
 };
 const newId=()=>crypto.randomUUID();
@@ -181,8 +190,8 @@ function locked(v){
   state.busy=v;
   el('start').disabled=v||!el('consent').checked||!state.preferencesSaved||!state.authenticated;
   el('startRiasec').disabled=v||!el('consent').checked||!state.preferencesSaved||!state.authenticated;
-  el('historyOpen').disabled=v||!state.authenticated;el('profileOpen').disabled=v||!state.authenticated;el('roadmapOpen').disabled=v||!state.authenticated;
-  for(const id of ['historyMore','next','previous','questionHome','logout','login','preferencesSave','preferencesEdit','profileReport','copyReport','hideReport','roadmapProfile','roadmapHistory','roadmapHome'])el(id).disabled=v;
+  el('historyOpen').disabled=v||!state.authenticated;el('profileOpen').disabled=v||!state.authenticated;el('roadmapOpen').disabled=v||!state.authenticated;el('careersOpen').disabled=v||!state.authenticated;
+  for(const id of ['historyMore','next','previous','questionHome','logout','login','preferencesSave','preferencesEdit','profileReport','copyReport','hideReport','roadmapProfile','roadmapHistory','roadmapHome','careerHome'])el(id).disabled=v;
   el('historyCompare').disabled=v||state.historySelections.length!==2;
   el('historyTrend').disabled=v||!state.trendGroups.length;
   el('trendVersion').disabled=v||!state.trendGroups.length;
@@ -402,6 +411,7 @@ function home(){
   state.form=null;state.answers={};state.index=0;state.requestId='';state.draftEnabled=false;
   state.historyCursor=null;state.historyEntries=[];state.trendGroups=[];
   state.historySelections=[];state.fromHistory=false;state.fromProfile=false;state.historyFromProfile=false;
+  el('careerItems').replaceChildren();el('careerDetail').replaceChildren();el('careerDetail').hidden=true;
   el('profileMethods').replaceChildren();el('profileSummary').replaceChildren();el('historyList').replaceChildren();el('scores').replaceChildren();el('reference').textContent='';el('resultScaleNote').textContent='';el('resultProvenance').textContent='';el('access').value='';
   show('welcome');locked(false);renderDraftResumes();renderSelection();renderTrendGroups();setStatus('');
 }
@@ -958,6 +968,88 @@ function showProfile(data){
   if(data.hasMoreMethods)el('profilePending').textContent+=' Показаны первые 12 методик.';
   show('profile');
 }
+// CAREER_KB_009_UI_BEGIN
+function careerAddText(parent, tag, value, cssClass) {
+  const node=document.createElement(tag);
+  if(cssClass)node.className=cssClass;
+  node.textContent=value;
+  parent.append(node);
+  return node;
+}
+function careerRenderDetail(data){
+  if(!data || data.careerFitCalculated!==false || data.source?.snapshotId!=='ONET_DB_31_0'
+      || !['15-2051.00','15-2051.01'].includes(data.code)
+      || !Array.isArray(data.measurements) || data.measurements.length!==20
+      || data.measurementCount!==20 || data.skillCount!==10)
+    throw new Error('Неверный или неполный справочник O*NET.');
+  const container=el('careerDetail');container.replaceChildren();
+  careerAddText(container,'h3',data.title+' · '+data.code);
+  careerAddText(container,'p',data.description,'muted');
+  careerAddText(container,'p','Источник: O*NET Database 31.0 · США · навыки и исходные шкалы, не профиль пользователя.','muted');
+  const bySkill=new Map();
+  for(const m of data.measurements){
+    if(!m || typeof m.skill!=='string' || typeof m.elementId!=='string'
+        || !['IM','LV'].includes(m.scaleId)
+        || !['OBSERVED','SUPPRESSED'].includes(m.evidenceStatus)
+        || (m.evidenceStatus==='SUPPRESSED' && m.rawValue!==null))
+      throw new Error('Несовместимый формат шкалы O*NET.');
+    if(!bySkill.has(m.elementId))bySkill.set(m.elementId,{label:m.skill,rows:new Map()});
+    const skill=bySkill.get(m.elementId);
+    if(skill.label!==m.skill || skill.rows.has(m.scaleId))throw new Error('Повторяющаяся шкала.');
+    skill.rows.set(m.scaleId,m);
+  }
+  if(bySkill.size!==10 || [...bySkill.values()].some(x=>x.rows.size!==2))
+    throw new Error('Не хватает исходных измерений.');
+  for(const [element,skill] of [...bySkill.entries()].sort((a,b)=>a[0].localeCompare(b[0]))){
+    const section=document.createElement('div');section.className='career-skill';
+    careerAddText(section,'h4',skill.label+' · '+element);
+    for(const scaleId of ['IM','LV']){
+      const m=skill.rows.get(scaleId);
+      const val=m.evidenceStatus==='SUPPRESSED'
+        ?'значение не опубликовано (SUPPRESSED)'
+        :m.rawValue+' из диапазона '+m.minimum+'–'+m.maximum;
+      careerAddText(section,'p',(scaleId==='IM'?'Importance':'Level')+': '+val+' · данные '+m.updatedAtSource,'muted');
+    }
+    container.append(section);
+  }
+  careerAddText(container,'p',data.notice,'muted');
+  container.hidden=false;
+}
+async function careerOpen(){
+  if(state.busy || !state.authenticated)return;
+  locked(true);setStatus('Загружаю два подтверждённых источником описания профессий...');
+  try{
+    const data=await api('/api/careers','GET');
+    if(!data || data.careerFitCalculated!==false || data.source?.snapshotId!=='ONET_DB_31_0'
+        || !Array.isArray(data.roles)||data.roles.length!==2
+        || new Set(data.roles.map(x=>x.code)).size!==2)
+      throw new Error('Неожиданный состав справочника.');
+    const list=el('careerItems');list.replaceChildren();el('careerDetail').replaceChildren();el('careerDetail').hidden=true;
+    for(const item of data.roles){
+      if(!['15-2051.00','15-2051.01'].includes(item.code)||item.skillCount!==10)
+        throw new Error('Незнакомая профессия в справочнике.');
+      const card=document.createElement('div');card.className='career-skill';
+      careerAddText(card,'h3',item.title+' · '+item.code);
+      careerAddText(card,'p',item.description,'muted');
+      const button=document.createElement('button');button.type='button';button.textContent='Посмотреть 10 навыков';
+      button.onclick=async()=>{
+        if(state.busy||!state.authenticated)return;
+        locked(true);setStatus('Читаю исходные значения O*NET...');
+        try{
+          const details=await api('/api/careers/'+encodeURIComponent(item.code),'GET');
+          if(details.code!==item.code)throw new Error('Источник вернул другую профессию.');
+          careerRenderDetail(details);setStatus('');
+        }catch(e){el('careerDetail').replaceChildren();el('careerDetail').hidden=true;setStatus(e.message,true);}
+        finally{locked(false);}
+      };
+      card.append(button);list.append(card);
+    }
+    show('careers');setStatus('Справочник O*NET 31.0 открыт. Рекомендации не рассчитываются.');
+  }catch(e){setStatus(e.message,true);}finally{locked(false);}
+}
+el('careersOpen').onclick=careerOpen;
+el('careerHome').onclick=()=>{if(!state.busy)home();};
+// CAREER_KB_009_UI_END
 el('consent').onchange=()=>locked(state.busy);
 el('preferencesSave').onclick=savePreferences;
 el('preferencesEdit').onclick=()=>{
