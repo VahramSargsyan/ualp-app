@@ -2,7 +2,7 @@
 
 Date: 2026-11-18
 MODE: IMPLEMENT_FEATURE / GUARDED_NEON_TEST_IMPORT
-STATUS: REAL_NEON_TEST_ONET31_IMPORT_PASS / IDPOTENT_REPLAY_NOOP
+STATUS: REAL_NEON_TEST_ONET31_IMPORT_PASS / IDEMPOTENT_REPLAY_NOOP
 SOURCE_CHECKPOINT: GitHub branch `feature/ualp-career-kb-neon-test-schema-guard`, commit `1aecc24f7fb97b3702ed49fd3473e2f1f2ea8052`.
 OWNER_AUTHORIZATION: owner's “Начни” responding to the specific next bounded block “защищённый импорт двух технических пилотных профессий и 40 требований ... в уже созданные таблицы”.
 
