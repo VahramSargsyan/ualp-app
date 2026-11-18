@@ -506,3 +506,15 @@ ROLLBACK: remove/revert isolated workflow branch (leave user TEST unmodified).
 PAID_API_BUDGET: 0; current assistant only. GitHub Actions single owner-approved run. REPAIR_LIMIT: max two focused evidence-producing fixes if required.
 STOP_CONDITIONS: lack of repo permissions, unknown paid spend, unsafe redirect, invalid source provenance or source schema, missing runner evidence.
 AUTHORIZATION_END: source receipt and concrete final report; no automatic next block.
+
+
+#### UALP-CAREER-KB-003 — final GitHub Actions evidence receipt (2026-11-18)
+
+SOURCE_VERIFICATION: **PASS**; exact initial workflow commit `1171ece481fde70a7493ddf581fb0a54d9f6fa68`; run `44322510909`, attempt 1, SUCCESS, job `134864896990`.
+Official O*NET Database 31.0 direct HTTPS: occupation_data.csv 1016, essential_skills.csv 18200, scales_reference.csv 33; file SHA256 frozen in docs/research/UALP_ONET_31_REAL_SOURCE_LOCK_20261118.json and read back from archived artifact.
+REAL_OFFLINE_READER: PASS — BI Analysts 15-2051.01; Data Scientists 15-2051.00; 40 source-skill observations, 39 observed and 1 suppressed/null. No career fit/proficiency inference.
+ARTIFACT `14435511727`: ZIP checksum `4d010c11479112c99fb44bd41890484259916b9093b83c3c614a77ab3c620f5d`, expires **2026-11-25 14:16 UTC**. Preserve source ZIP externally before expiration for reproducibility.
+EVIDENCE: GitHub run/steps/logs, exact 3 CSV digest and independent recipient ZIP CRC/hash/row readback.
+NOT_RUN: Neon/PostgreSQL writes, webapp/Android UI, owner UAT, PROD. Expected because zero runtime files or schema changed.
+ROLLBACK: separate documentation experiment only; owner TEST PR #7 unchanged; no migration.
+AUTHORIZATION_END: this run/verification source-lock block finished; STOP, no automatic database import or migration.
