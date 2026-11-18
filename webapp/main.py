@@ -23,7 +23,7 @@ from webapp.riasec_manifest import (
 
 from webapp.owner_session import COOKIE_NAME, SESSION_SECONDS, issue_session, valid_session
 
-APP_VERSION = "0.5.0-raw-score-trends-test"
+APP_VERSION = "0.5.1-career-kb-readonly-test"
 ENABLED_FORM = "UALP_WV21_RU_LIKERT"
 CI_SYNTHETIC_FORM = "CI_RIASEC_60_SYNTHETIC"
 OWNER_RIASEC_FORM = "ONET_SHORT_60_DIGITAL"
@@ -609,3 +609,6 @@ def owner_profile(response: Response, url: str = Depends(authorized)):
         ),
     }
 
+# Reuse signed owner session; Career KB never joins assessment data.
+from career_kb.owner_read_api import build_owner_router
+app.include_router(build_owner_router(authorized, connect))
