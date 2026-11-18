@@ -657,3 +657,22 @@ SOURCE CODE: `career_kb/neon_test_import_adapter.py`; original localhost-only 00
 MIGRATION_THIS_BLOCK: none; schema in place since 007. ROLLBACK: transaction abort until commit; postcommit do not DROP populated tables, preserve preimport Neon backup. Destructive restore requires independent owner authorization.
 NOT_RUN: user-facing Vercel/Android runtime, Career KB API/read-only UI, owner UAT, PROD, restoring active TEST by overwriting a branch. No new TEST app URL; PR #7 and GitHub main untouched.
 FINAL_RECEIPT: docs/research/UALP_CAREER_KB_008_NEON_TEST_REAL_IMPORT_RECEIPT_20261118.md. AUTHORIZATION_END: STOP.
+
+
+### UALP-CAREER-KB-009 — protected Career KB API and owner-only UI (2026-11-18)
+
+CAPABILITY_ID: UALP-CAREER-KB-009 / OWNER_ONLY_SOURCE_BACKED_CAREER_VIEW
+MODE: IMPLEMENT_FEATURE; RISK: L2 read-only API/user presentation, no schema/data writes.
+BASE: d18f4c8e53396616c3a0437a504da599a5a54987
+OWNER_BRANCH: feature/ualp-career-kb-009-owner-read-ui
+TESTED_CODE_COMMIT: 001cdea714dfe70bb34109c96fdf7f0fff10d3fb
+OWNER_RESULT: two U.S. O*NET Database 31.0 role descriptions with 10 skill descriptors/20 measured source rows per profession visible after existing owner signed-session login, no job fitting, labor market or profile-derived skills.
+SOURCE AUTHORITY: accepted 008 TEST snapshot ONET_DB_31_0, pinned official source file SHA256 and manifest; all seven actual database table row-content digests pinned to 008 readback. No raw CSV, access keys, user records or URLs with credentials in repo.
+SCOPE: additive read-only FastAPI routes, existing signed owner-session access guard, minimal owner HTML view/JS, targeted synthetic automated checks; no private assessment rerouting, no new profile permissions or new IDs.
+CHECKS: 15 targeted Python pytest PASS (fixture DB), Node synthetic UI DOM smoke PASS, Python compilation PASS, JS syntax PASS, independent Neon public-source read-only query of two roles and 40 measurements PASS. Real HTTP app test on Vercel NOT_RUN; local postgres driver not installed for complete integration suite. These are different test levels.
+MIGRATION/ROLLBACK: No new DB schema or data mutation; revert isolated GitHub branch. Keep owner TEST and PROD unchanged. No copy files manually.
+ACCESS BLOCKER: Connected Vercel Hobby account/team lists no UALP project, hence exact-commit Preview not deployed and TEST URL not asserted. Do not create another project or change existing deployment. GitHub PR #7 stays draft/unmodified. Separate owner UAT NOT_RUN.
+BUSINESS BOUNDARY: no score normalization, no suitability %, no recommendations or Armenia labor-market claims; do not turn O*NET occupational source values into learner proficiencies.
+PAID API: 0. No extra agents, GitHub Actions or paid hosting created.
+RECEIPT: docs/research/UALP_CAREER_KB_009_OWNER_READ_UI_RECEIPT_20261118.md
+STOP: require existing Vercel project access then separately guarded exact Preview deploy and owner acceptance; no PROD.
