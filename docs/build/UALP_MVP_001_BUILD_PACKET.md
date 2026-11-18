@@ -539,3 +539,23 @@ ROLLBACK_THIS_BLOCK: revert isolated commit only, no persisted data changes. Can
 PAID_API_BUDGET: 0; EXECUTOR: current assistant; no additional executors; no GitHub Actions triggered under previous one-time approval.
 REPAIR_LIMIT: up to 2 focused cycles. STOP_CONDITIONS: new DB/scheme ownership, migration or full import, paid infra, explicit end of scope, source mismatch, unverified runtime.
 AUTHORIZATION_END: commit/receipt, STOP. NEXT_BOUNDARY: separately authorized ephemeral PostgreSQL migration/rollback rehearsal then separate Neon TEST approval, not automatic.
+
+
+### UALP-CAREER-KB-005 — disposable PostgreSQL DDL/rollback rehearsal (2026-11-18)
+
+CAPABILITY_ID: UALP-CAREER-KB-005 / DISPOSABLE_POSTGRES_SCHEMA_ROLLBACK_TEST
+USER_RESULT: Prove the proposed Career KB SQL installs on a fresh PostgreSQL 18 service, protects an existing seeded AssessmentRun/Response/Score, rejects wrong-source and invalid ratings, refuses unsafe rollback, and safely removes only empty Career KB tables under a disposable-test-only gate.
+WORKFLOW_MODE: STRESS_TEST_ONLY (bounded real database integration rehearsal); RISK_CLASS: L3 migration/schema testing only, without changes to candidate SQL files or hosted TEST.
+BASE_COMMIT: c1d68bcd5ced1c739651169df48f2ca4c9866c96
+OWNER_BRANCH: feature/ualp-career-kb-postgres-rehearsal-once
+TEST_TARGET: One ephemeral public-repository GitHub Actions postgres:18 service, fixed 127.0.0.1:5432/ualp_ci, no remote credentials or paid services.
+SCOPE: isolated tests/test_career_kb_pg_rehearsal.py, one-shot path/branch-scoped Actions workflow and receipt; existing staged migration SQL/rollback are read without changes.
+OUT_OF_SCOPE: any Neon TEST/PROD schema/data write, real user data, stored scoring changes, Vercel/Android, migration promotion, public career APIs, role recommendations, source CSV ingestion, application run.
+SHARED_HOTSPOTS: exactly docs/migration_candidates/UALP_CAREER_KB_004_SCHEMA_CANDIDATE.sql and UALP_CAREER_KB_004_SCHEMA_ROLLBACK_DISPOSABLE_ONLY.sql, existing migrations/001_initial_postgres_test.sql; no changes to any of these files.
+CANONICAL / SCHEMA_IMPACT / MIGRATION_PLAN: no persistent schema impact. All SQL statements restricted to disposable postgres with explicit session gate; synthetic legacy baseline SHA256 before and after provides preservation evidence. No backup or migration of Neon authorized. SQL rollback drops only empty career tables.
+ACCEPTANCE: exact source SHA + one Actions run + real DB test receipt, 7 added tables, negative FK/check/unique tests, nonempty rollback refusal, empty rollback PASS, unchanged assessment baseline, no second run. Any failure requires focused repair or BLOCKED receipt.
+ROLLBACK_THIS_BLOCK: revert isolated GitHub branch; service container disposable and destroyed on job exit; no runtime rollback required.
+PAID_API_BUDGET: 0. EXECUTOR_PERMISSION: current assistant, one GitHub Actions job for the explicitly requested ephemeral PostgreSQL check; no Codex or other parallel executor.
+REPAIR_LIMIT: at most two evidence-based cycles; no unrelated reruns.
+STOP_CONDITIONS: source/branch drift, non-local DB target, unexpected running actions, failure beyond bounded fixes, any need for Neon migration or paid API.
+AUTHORIZATION_END: GitHub runtime receipt / safe fail report then STOP. Successful PostgreSQL test is not Neon TEST deployment acceptance.

@@ -1,0 +1,64 @@
+name: UALP Career KB isolated PostgreSQL rehearsal once
+on:
+  push:
+    branches:
+      - feature/ualp-career-kb-postgres-rehearsal-once
+    paths:
+      - .github/workflows/ualp-career-kb-postgres-rehearsal-once.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ualp-career-kb-005-one-time-pg-rehearsal
+  cancel-in-progress: false
+
+jobs:
+  career-pg-ddl-rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: ualp_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ephemeral_ci_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ualp_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      UALP_CI_MODE: EPHEMERAL_POSTGRES_CAREER_KB
+      UALP_CI_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/ualp_ci
+      PGPASSWORD: ephemeral_ci_only
+      UALP_CI_RECEIPT_PATH: ${{ runner.temp }}/ualp-career-kb-005/pg_rehearsal_receipt.json
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Read exact source, no write-capable checkout credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate Python syntax
+        run: python -m compileall -q tests/test_career_kb_pg_rehearsal.py
+      - name: Install existing approved local test dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Run real PostgreSQL 18 additive DDL and rollback rehearsal
+        run: python -m pytest -q -s tests/test_career_kb_pg_rehearsal.py
+      - name: Preserve ephemeral DB test receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ualp-career-kb-005-disposable-pg-receipt
+          path: ${{ runner.temp }}/ualp-career-kb-005/pg_rehearsal_receipt.json
+          retention-days: 7
+          if-no-files-found: warn
