@@ -37,7 +37,7 @@ jobs:
       UALP_CI_MODE: EPHEMERAL_POSTGRES_CAREER_KB
       UALP_CI_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/ualp_ci
       PGPASSWORD: ephemeral_ci_only
-      UALP_CI_RECEIPT_PATH: ${{ runner.temp }}/ualp-career-kb-005/pg_rehearsal_receipt.json
+      UALP_CI_RECEIPT_PATH: /tmp/ualp-career-kb-005/pg_rehearsal_receipt.json
       PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - name: Read exact source, no write-capable checkout credentials
@@ -59,6 +59,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ualp-career-kb-005-disposable-pg-receipt
-          path: ${{ runner.temp }}/ualp-career-kb-005/pg_rehearsal_receipt.json
+          path: /tmp/ualp-career-kb-005/pg_rehearsal_receipt.json
           retention-days: 7
           if-no-files-found: warn
