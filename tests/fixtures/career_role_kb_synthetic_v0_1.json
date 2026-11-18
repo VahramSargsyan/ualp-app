@@ -1,0 +1,132 @@
+{
+  "schemaVersion": "UALP-CAREER-KB-SYNTH-v0.1",
+  "datasetKind": "SYNTHETIC_ONLY",
+  "sourceSnapshots": [
+    {
+      "snapshotId": "SNAP-SYNTH-001",
+      "provider": "SYNTHETIC_TEST_ONLY",
+      "sourceVersion": "fictional-0.1",
+      "taxonomyVersion": "SYNTHETIC_TAXONOMY_1",
+      "geography": "FICTIONAL",
+      "licenseId": "NOT_APPLICABLE_GENERATED_FIXTURE",
+      "retrievedAt": "2026-11-18T00:00:00Z",
+      "contentStatus": "SYNTHETIC_ONLY"
+    }
+  ],
+  "occupations": [
+    {
+      "occupationId": "ROLE-SYNTH-001",
+      "occupationVersionId": "ROLEVER-SYNTH-001",
+      "snapshotId": "SNAP-SYNTH-001",
+      "externalCode": "FAKE-ROLE-01",
+      "title": "Fictional Data Organizer",
+      "locale": "en",
+      "status": "SYNTHETIC_ONLY"
+    },
+    {
+      "occupationId": "ROLE-SYNTH-002",
+      "occupationVersionId": "ROLEVER-SYNTH-002",
+      "snapshotId": "SNAP-SYNTH-001",
+      "externalCode": "FAKE-ROLE-02",
+      "title": "Fictional Workflow Builder",
+      "locale": "en",
+      "status": "SYNTHETIC_ONLY"
+    }
+  ],
+  "competencies": [
+    {
+      "competencyId": "COMP-SYNTH-001",
+      "sourceElementId": "FAKE-SKILL-01",
+      "kind": "SKILL",
+      "label": "Organize imaginary records",
+      "locale": "en",
+      "snapshotId": "SNAP-SYNTH-001"
+    },
+    {
+      "competencyId": "COMP-SYNTH-002",
+      "sourceElementId": "FAKE-KNOWLEDGE-02",
+      "kind": "KNOWLEDGE",
+      "label": "Understand fictional labels",
+      "locale": "en",
+      "snapshotId": "SNAP-SYNTH-001"
+    },
+    {
+      "competencyId": "COMP-SYNTH-003",
+      "sourceElementId": "FAKE-TASK-03",
+      "kind": "TASK",
+      "label": "Review a made-up checklist",
+      "locale": "en",
+      "snapshotId": "SNAP-SYNTH-001"
+    }
+  ],
+  "requirements": [
+    {
+      "requirementId": "REQ-SYNTH-001",
+      "occupationVersionId": "ROLEVER-SYNTH-001",
+      "competencyId": "COMP-SYNTH-001",
+      "snapshotId": "SNAP-SYNTH-001",
+      "sourceRecordId": "FAKE-REC-001",
+      "measureKind": "IMPORTANCE",
+      "sourceScaleId": "FAKE-IMPORTANCE-1-5",
+      "scale": {
+        "min": 1,
+        "max": 5
+      },
+      "value": 3,
+      "evidenceStatus": "OBSERVED"
+    },
+    {
+      "requirementId": "REQ-SYNTH-002",
+      "occupationVersionId": "ROLEVER-SYNTH-001",
+      "competencyId": "COMP-SYNTH-002",
+      "snapshotId": "SNAP-SYNTH-001",
+      "sourceRecordId": "FAKE-REC-002",
+      "measureKind": "LEVEL",
+      "sourceScaleId": "FAKE-LEVEL-0-7",
+      "scale": {
+        "min": 0,
+        "max": 7
+      },
+      "value": 2,
+      "evidenceStatus": "OBSERVED"
+    },
+    {
+      "requirementId": "REQ-SYNTH-003",
+      "occupationVersionId": "ROLEVER-SYNTH-002",
+      "competencyId": "COMP-SYNTH-001",
+      "snapshotId": "SNAP-SYNTH-001",
+      "sourceRecordId": null,
+      "measureKind": "IMPORTANCE",
+      "sourceScaleId": "FAKE-IMPORTANCE-1-5",
+      "scale": {
+        "min": 1,
+        "max": 5
+      },
+      "value": null,
+      "evidenceStatus": "NOT_REPORTED"
+    },
+    {
+      "requirementId": "REQ-SYNTH-004",
+      "occupationVersionId": "ROLEVER-SYNTH-002",
+      "competencyId": "COMP-SYNTH-003",
+      "snapshotId": "SNAP-SYNTH-001",
+      "sourceRecordId": "FAKE-REC-004",
+      "measureKind": "PRESENCE",
+      "sourceScaleId": "FAKE-PRESENCE-0-1",
+      "scale": {
+        "min": 0,
+        "max": 1
+      },
+      "value": 1,
+      "evidenceStatus": "OBSERVED"
+    }
+  ],
+  "profileBridge": {
+    "existingEndpoint": "GET /api/profile",
+    "roleMatchingEnabled": false,
+    "skillInferenceFromAssessmentEnabled": false,
+    "learnerEvidence": [],
+    "roleGapScores": [],
+    "userDataIncluded": false
+  }
+}

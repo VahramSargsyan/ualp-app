@@ -450,3 +450,22 @@ ACCEPTANCE / REQUIRED_EVIDENCE: JS syntax + Python full tests and synthetic mobi
 ROLLBACK: TEST source-only revert to exact BASE_COMMIT, no existing records or APK changed.
 RISKS: Reassessment variability is not proof of growth. Sample selection is limited to already-loaded completed runs (show "Показать ещё" for older entries), at most six per plot. Client uses same owner TEST key access boundary, no authorization widening. Show both raw numeric timeline and visible experimental disclaimer to reduce metric confusion.
 EXECUTOR_PERMISSION: current assistant only; no Codex/other agents. PAID_API_BUDGET: 0. REPAIR_LIMIT: 2 evidence-based focused fixes. STOP_CONDITIONS: source schema change, auth leak, CI failure beyond repair, paid service, PROD boundary, new substantial business decision. AUTHORIZATION_END: exact TEST-verified PR receipt and deferred owner bundle, STOP. Manual acceptance is not implied by automation.
+
+
+## UALP-CAREER-KB-001 — Source/Data Contract Foundation (2026-11-18)
+
+CAPABILITY_ID: UALP-CAREER-KB-001 / CAREER_ROLE_KB_FOUNDATION
+USER_RESULT: A small, testable and source-aware design for occupation/role requirements and competencies, which can later support evidence-based career learning without interpreting RIASEC/Work Values raw scores as job readiness.
+WORKFLOW_MODE: ECOSYSTEM_PLANNING / bounded design with synthetic contract tests; RISK_CLASS: L1 for documentation and isolated synthetic test only.
+BASE_COMMIT: 3cf3378ce8b3256fc18e0e6bf8303cd21cc15a25
+OWNER_BRANCH: feature/ualp-career-role-kb-foundation-docs (separate docs candidate; existing owner Vercel TEST branch and Draft PR #7 remain frozen).
+OWNER / TEST: Vahram; no TEST deployment in this block. PAID_API_BUDGET: 0; EXECUTOR: current assistant only.
+SCOPE: inspect current accepted UALP PostgreSQL and profile contracts; verify official O*NET Database 31.0 metadata/licensing; write proposed versioned occupation/competency/source/provenance contract; add fully synthetic fixture and source-free negative tests.
+OUT_OF_SCOPE: real O*NET dataset ingest, new SQL tables, Neon writes, UI/API implementation, ranking/matching, inferred skills, career percentages, ICAR activation, personal data, PROD/main merge, paid tools.
+CANONICAL / SHARED_HOTSPOTS: docs/architecture/CAREER_ROLE_KB_CONTRACT.md is proposal only; existing runtime authority remains docs/architecture/DATA_CONTRACT.md and migrations/001_initial_postgres_test.sql. Shared hotspots future: profile endpoint, external taxonomy/version, schema, provenance, license; NONE changed now.
+SCHEMA_IMPACT: NONE. MIGRATION_PLAN: NOT_REQUIRED_NOW; future role/skill storage must have separately approved additive migration+backup+rollback and real PostgreSQL checks.
+REQUIRED_EVIDENCE: official source/licence references; synthetically verified FK/version/scale/unknown guards; path/readback checks; legacy runtime unchanged. Full CI/Vercel/Neon/Android runtime is NOT_RUN for this isolated design and not a claim of real integration.
+ROLLBACK: revert docs-only commit (or leave proposed branch unmerged); original owner TEST head 3cf3378ce8b3256fc18e0e6bf8303cd21cc15a25 remains untouched; no database restore.
+STOP_CONDITIONS: source/license ambiguity, production data changes, new migrations, unapproved public release or automated career inference.
+NEXT_BOUNDARY: offline verified O*NET 31.0 source-lock and reader only after separate instruction, then a distinct migration authorization if needed.
+AUTHORIZATION_END: contract/synthetic fixture verification receipt and report; STOP.
