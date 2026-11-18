@@ -559,3 +559,14 @@ PAID_API_BUDGET: 0. EXECUTOR_PERMISSION: current assistant, one GitHub Actions j
 REPAIR_LIMIT: at most two evidence-based cycles; no unrelated reruns.
 STOP_CONDITIONS: source/branch drift, non-local DB target, unexpected running actions, failure beyond bounded fixes, any need for Neon migration or paid API.
 AUTHORIZATION_END: GitHub runtime receipt / safe fail report then STOP. Successful PostgreSQL test is not Neon TEST deployment acceptance.
+
+
+#### UALP-CAREER-KB-005 — final source-locked disposable PostgreSQL receipt (2026-11-18)
+EXACT_COMMIT_TESTED: `0b755dd24a46505a376e666135af99bc4a6fa69e`
+RUN_ID: `44333540471`; JOB `134903969574`, SUCCESS.
+TEST_LEVEL: REAL_DISPOSABLE_POSTGRESQL_18_E2E; pytest 1 passed, 12 targeted negative SQL checks; 7 Career KB tables installed and removed on real PG 18; 40 synthetic records (39 observed, 1 suppressed/null); baseline original 10 tables sha256 unchanged `d2a16a519f28d3822364e329021eb3af21a8ef42b0396c16e5c8ddc0ec8f8922`.
+UNIQUE/FK_TARGETED: PASS — scale composite FK and source-record uniqueness checked by exact SQL constraint names, along with source/metadata/null bounds and cross-snapshot FK.
+ROLLBACK: missing session gate DENIED, nonempty DENIED, empty after explicit synthetic cleanup PASS; no real data deleted. Candidate SQL files unchanged.
+ARTIFACT: 14439678097 expires 2026-11-25 15:16 UTC; receipt SHA `464224c4e427b454360023548c765e9edf682faca201dbc644733dd0598b81d7`. Details: docs/research/UALP_CAREER_KB_005_PG_REHEARSAL_RECEIPT.md.
+REPAIRS: initial YAML job context fixed; then negative tests strengthened; at most 2 meaningful repair cycles, no further run required.
+NOT_RUN: real source writer, Neon TEST/schema, backup/restore, Vercel, owner UAT, Android, PROD. STOP. No automatic permission to progress.

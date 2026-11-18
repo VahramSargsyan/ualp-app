@@ -2,7 +2,7 @@
 
 DATE: 2026-11-18
 CAPABILITY_ID: UALP-CAREER-KB-005 / DISPOSABLE_POSTGRES_SCHEMA_ROLLBACK_TEST
-STATUS: PENDING_GITHUB_ACTIONS_RUNTIME_CHECK
+STATUS: REAL_DISPOSABLE_POSTGRESQL_18_E2E_PASS
 BASE_COMMIT: `c1d68bcd5ced1c739651169df48f2ca4c9866c96`
 OWNER_BRANCH: `feature/ualp-career-kb-postgres-rehearsal-once`
 MODE: STRESS_TEST_ONLY (bounded functional integration rehearsal) — no persistent repo production edits or Neon writes
@@ -40,3 +40,21 @@ Potential runtime failure is NOT_RUN until the GitHub Actions run finishes. Loca
 ## Rollback and future boundary
 
 The CI service is disposable. Revert this isolated branch to delete the test harness. The SQL rollback candidate refuses nonempty tables and must never be used on populated Neon. There is no actual backup of real Neon data, no migration receipts for Neon and no target TEST installation. Successful disposable rehearsal allows a **separate** planning/approval decision for a real Neon migration with backup/restore and owner acceptance, not automatic deployment.
+
+
+## Real GitHub Actions execution receipt — final
+
+- **Verified run:** [44333540471](https://github.com/VahramSargsyan/ualp-app/actions/runs/44333540471) at exact commit `0b755dd24a46505a376e666135af99bc4a6fa69e`; job `134903969574`; conclusion **SUCCESS**, `pytest: 1 passed in 0.29s`.
+- **TEST_LEVEL:** `REAL_DISPOSABLE_POSTGRESQL_18_E2E`; only PostgreSQL 18 service on 127.0.0.1:5432/ualp_ci.
+- **Artifact:** [14439678097](https://github.com/VahramSargsyan/ualp-app/actions/runs/44333540471/artifacts/14439678097), `ualp-career-kb-005-disposable-pg-receipt` (JSON ZIP), expires **2026-11-25T15:16:04Z**, archive SHA-256 `464224c4e427b454360023548c765e9edf682faca201dbc644733dd0598b81d7`.
+- **Independent receipt ZIP readback:** CRC PASS, JSON parsed, 12 negative checks, 7 tables created/removed, 40 synthetic requirements (39 OBSERVED + 1 SUPPRESSED/null), 10 original table contents preserved.
+- **Preserved original-data digest:** `d2a16a519f28d3822364e329021eb3af21a8ef42b0396c16e5c8ddc0ec8f8922`, identical before/after migration and rollback. Baseline has one synthetic sample row in each original table, including one completed run, response and score.
+- **Schema install:** PASS, 7 Career KB tables, no other schema changes; repeated install blocked.
+- **Rollback:** gate absent → REJECT; populated tables → REJECT; explicit synthetic cleanup then guarded DROP → PASS.
+- **Negative FK/check/unique evidence:** unknown competency `23503`; over-limit rating, observed missing value, suppressed non-null `23514`; mismatched scale bounds **exact scale FK** `23503`; duplicate source record **exact source unique constraint** `23505`; cross-snapshot FK `23503`; referenced snapshot deletion `23001`. The revised suite checks named SQL constraints, not just generic error results.
+- **CI chronology:** initial run [44332635509](https://github.com/VahramSargsyan/ualp-app/actions/runs/44332635509) FAILED with zero jobs due to job-level `runner.temp` context. Repair cycle 1 corrected CI receipt path; run [44332822817](https://github.com/VahramSargsyan/ualp-app/actions/runs/44332822817) PASS. Its log revealed two negative checks masked by existing uniqueness; repair cycle 2 added a distinct synthetic competency and targeted constraint identity; final run above PASS. No further retries requested.
+- **Code impact:** only added tests/workflow, receipt and appended Build Packet in a dedicated branch. Both proposed SQL files and legacy migration SQL remain **unchanged**.
+- **NOT_RUN:** real O*NET row import into PostgreSQL, idempotent import writer/atomic retries, Neon TEST migration, backup-and-restore of real user data, Vercel/Android runtime, user UAT, PROD.
+- **Migration impact outside ephemeral CI:** NONE. No Neon, owner TEST PR #7, main, PROD writes or deployments. PostgreSQL runner was destroyed at the end of job.
+- **Rollback for repository:** leave this isolated branch unmerged or revert the test harness. No remote database rollback required.
+- **Next boundary:** separately authorized design and safe rehearsal for transactional, deterministic source import plus Neon TEST migration/backup gate; this test is not approval for those actions.
