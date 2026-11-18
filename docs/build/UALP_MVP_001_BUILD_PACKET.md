@@ -600,3 +600,21 @@ TRANSACTIONAL: three injected mid-operation failures leave 0 source rows; parall
 EVIDENCE: GitHub artifact 14446618590 expires 2026-11-25 16:37 UTC. JSON ZIP SHA `ee5a257c69ef63fdbe0ad0981996ccdb988977e2808c3c86974028c21e334671`, CRC and receipt readback PASS. First run failed only test regex capitalization; one focused repair to test/CI comment -> final PASS.
 NOT_RUN: Neon TEST migration, backup/restore real user data, authenticated Vercel/Android runtime, owner UAT, PROD. Neither code in owner PR #7 nor main changed; no hosted TEST URL for this isolated block.
 NEXT_BOUNDARY: separately authorized Neon TEST backup+guarded migration+owner acceptance; STOP.
+
+
+### UALP-CAREER-KB-007 — Guarded Neon TEST readiness and backup (2026-11-18)
+CAPABILITY_ID: UALP-CAREER-KB-007 / NEON_TEST_SCHEMA_MIGRATION_READINESS
+USER_RESULT: Verify live UALP Neon TEST state, preserve a fresh matching TEST backup without changing active data, and prepare a separate owner-gated schema migration candidate without weakening the disposable SQL or importer safety.
+WORKFLOW_MODE: IMPLEMENT_FEATURE (bounded TEST schema release preparation); RISK_CLASS: L3.
+BASE_COMMIT: c92bce785f3a66ff164ea89bd6be1ed768dda84b; OWNER_BRANCH: feature/ualp-career-kb-neon-test-schema-guard; TEST_TARGET: existing Neon Free / ualp_test (main is TEST), not PROD.
+OWNER/TEST: Vahram. Project governance v1.1.0 accepted in project branch; main still has earlier Google-backed overlay and no accepted PostgreSQL runtime.
+SCOPE: fresh Neon branch backup + read-only schema/aggregate row digests, fixed-schema SQL candidate for hosted TEST with explicit role/database/version gate, checked GitHub checkpoint; no manual paid snapshot.
+OUT_OF_SCOPE: writing to active Neon TEST, imported Career KB rows, migrating existing assessment schema, public API, Vercel/Android, PR #7, PROD.
+CANONICAL: 006 E2E commit e15a6f17de92ab0a5af3f377c577b788d6470209, official O*NET 31 source digest + plan digest frozen; 007 schema body table/index definitions identical to 004.
+MIGRATION_PLAN: docs/research/UALP_CAREER_KB_007_NEON_TEST_READINESS_20261118.md; backup and rollback gates fully documented. Backup is a Neon copy-on-write branch verified 10/10 but replacing active TEST in a restore remains NOT_RUN.
+TEST_EVIDENCE: 10 original tables, schema version UALP-POSTGRES-TEST-v0.1, 2 assessment runs / 81 responses / 33 score rows, 0 Career KB tables. Matching table-by-table source vs backup digest 10/10.
+BLOCKER: previous 004 SQL and 006 writer intentionally allow disposable localhost only; only a tested and owner-approved exact hosted TEST-specific authorization path may deploy or import. P0 do not bypass these fences.
+ROLLBACK_THIS_BLOCK: leave GitHub branch unmerged or revert 007 documents; safe Neon backup branch remains for independent recovery. No existing row/schema writes performed.
+PAID_API_BUDGET: 0; no extra agents/Codex/API. STOP_CONDITIONS: role/DB mismatch, branch drift, unsupported restore test, risk of paid spend, destructive migration before owner approval.
+REQUIRED_NEXT_EVIDENCE: real PostgreSQL 18 dry-run of 007 hosted authorization guard against TEST clone, matched pre/post original data, reviewed source and migration receipt.
+AUTHORIZATION_END: TEST backup+readiness checkpoint; active TEST migration not yet applied.
