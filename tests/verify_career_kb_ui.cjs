@@ -3,7 +3,13 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
-const source=fs.readFileSync(process.argv[2]||'webapp/career_ui_snippet.js','utf8');
+const uiFile=process.argv[2]||'webapp/index.html';
+const raw=fs.readFileSync(uiFile,'utf8');
+const start='// CAREER_KB_009_UI_BEGIN';
+const end='// CAREER_KB_009_UI_END';
+const source=raw.includes(start) && raw.includes(end)
+  ? raw.slice(raw.indexOf(start)+start.length,raw.indexOf(end)).trim()
+  : (process.argv[2] ? raw : (()=>{throw Error('Career 009 embedded UI markers missing')})());
 assert(!source.includes('innerHTML'));
 class Element {
   constructor(tag='div') {this.tag=tag;this.children=[];this.textContent='';this.hidden=false;this.disabled=false;this.onclick=null;}
