@@ -590,3 +590,13 @@ ROLLBACK: isolated branch revert; disposable PostgreSQL container destroyed afte
 PAID_API_BUDGET: 0; current assistant and one scoped GitHub Actions run only; additional executors prohibited. REPAIR_LIMIT: at most two evidence-producing repair cycles.
 STOP_CONDITIONS: upstream SHA drift, unsupported artifact permissions or expiry, source hash mismatch, SQL E2E fail, remote connection need, paid services, any new business decision.
 AUTHORIZATION_END: real-source transactional importer E2E receipt and checkpoint; STOP, future Neon TEST decision separate.
+
+
+#### UALP-CAREER-KB-006 — transactional O*NET import real PostgreSQL E2E receipt (2026-11-18)
+
+STATUS: **PASS**, exact tested commit `e15a6f17de92ab0a5af3f377c577b788d6470209`, GitHub run [44349260235](https://github.com/VahramSargsyan/ualp-app/actions/runs/44349260235), job `134960064293`; 2 pytest PASS on ephemeral PostgreSQL 18.
+SOURCE_PLAN_SHA256: `78d8aed89a505bf04d4d5d73e609b327bede800694a89a15bab50965a6ec449d`, original O*NET Database 31.0 artifact 14435511727/44322510909; 1 snapshot, 2 real US occupation versions, 10 skills, 2 scales, 40 requirements (39 OBSERVED, 1 SUPPRESSED/null) read back.
+TRANSACTIONAL: three injected mid-operation failures leave 0 source rows; parallel first writes -> INSERTED + NOOP; re-run NOOP; existing altered row -> REJECTED not overwritten; remote DB fence DENIED; guarded empty-only rollback PASS; legacy 10-table digest unchanged `aba3cd983d6e99924c58a404924b60ccb87119c7215b25d4f4ea244d8114a251`.
+EVIDENCE: GitHub artifact 14446618590 expires 2026-11-25 16:37 UTC. JSON ZIP SHA `ee5a257c69ef63fdbe0ad0981996ccdb988977e2808c3c86974028c21e334671`, CRC and receipt readback PASS. First run failed only test regex capitalization; one focused repair to test/CI comment -> final PASS.
+NOT_RUN: Neon TEST migration, backup/restore real user data, authenticated Vercel/Android runtime, owner UAT, PROD. Neither code in owner PR #7 nor main changed; no hosted TEST URL for this isolated block.
+NEXT_BOUNDARY: separately authorized Neon TEST backup+guarded migration+owner acceptance; STOP.
