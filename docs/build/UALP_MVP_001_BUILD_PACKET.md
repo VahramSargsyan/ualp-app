@@ -489,3 +489,20 @@ STOP_CONDITIONS: missing official source bytes; unknown license or provenance; m
 STATUS: PARTIAL / LOCAL_TESTED / OFFICIAL_SOURCE_BYTES_BLOCKED.
 NEXT_BOUNDARY: independently acquire official CSV files, establish SHA256 and row readback, and run real offline subset; no PostgreSQL migration without separate permission.
 AUTHORIZATION_END: file/commit receipt and report, STOP.
+
+
+### UALP-CAREER-KB-003 — one-shot GitHub Actions real O*NET source lock (2026-11-18)
+CAPABILITY_ID: UALP-CAREER-KB-003 / ONET31_ONE_SHOT_SOURCE_VERIFICATION
+USER_RESULT: Obtain original official O*NET 31.0 CSV bytes from isolated GitHub-hosted Actions, create exact SHA-256 source lock and run existing offline reader on two actual occupations.
+WORKFLOW_MODE: IMPLEMENT_FEATURE / source acquisition unblock and runtime-on-GitHub QA; RISK_CLASS: L2 provenance gate.
+OWNER_AUTHORIZATION: "Да разрешаю" replying to explicit one-time GitHub Actions download/hash/reader proposal; no Codex, paid API, main, PROD or migrations.
+BASE_COMMIT: a2b060a0295f612aca3127fdd6753b8304e5815a; OWNER_BRANCH: feature/ualp-onet-31-source-lock-once ; TEST_TARGET: disposable hosted GitHub Actions runner only.
+SCOPE: one read-only GitHub Actions workflow, offline CI source download helper, receipt and artifact, with exact source release and source integrity validation.
+OUT_OF_SCOPE: cloud TEST app changes, Neon writer or schema, assessment instruments/keys, job matching, automated role scoring, public UALP respondent, user data, PR #7, Android, Vercel release, merges.
+CANONICAL / SCHEMA_IMPACT / MIGRATION_PLAN: Existing DB/IDs and production untouched; no migration or rollback of stored data; source artifact immutable by SHA and time stamped for research only.
+DEPENDENCIES / RISK: official www.onetcenter.org HTTPS reachable from GitHub-hosted runner, existing locked offline reader; no mirrors allowed. If official bytes cannot be acquired or schema differs, FAIL CLOSED.
+ACCEPTANCE / REQUIRED_EVIDENCE: exact GitHub SHA and run ID, job completion, SHA256 and row readback for 3 files, two real occupation names and source-backed skill rows. Generated artifact retained 7 days; review in current conversation. Static YAML check alone is not source verification.
+ROLLBACK: remove/revert isolated workflow branch (leave user TEST unmodified).
+PAID_API_BUDGET: 0; current assistant only. GitHub Actions single owner-approved run. REPAIR_LIMIT: max two focused evidence-producing fixes if required.
+STOP_CONDITIONS: lack of repo permissions, unknown paid spend, unsafe redirect, invalid source provenance or source schema, missing runner evidence.
+AUTHORIZATION_END: source receipt and concrete final report; no automatic next block.

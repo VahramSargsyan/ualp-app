@@ -1,0 +1,50 @@
+name: UALP O-NET 31.0 one-time official CSV source-lock
+
+on:
+  push:
+    branches:
+      - feature/ualp-onet-31-source-lock-once
+    paths:
+      - .github/workflows/ualp-onet-31-source-lock-once.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ualp-onet-31-official-source-lock-once
+  cancel-in-progress: false
+
+jobs:
+  acquire-and-validate:
+    if: github.ref == 'refs/heads/feature/ualp-onet-31-source-lock-once'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out exact workflow commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate read-only tooling syntax
+        run: python -m compileall -q career_kb
+      - name: Direct official O-NET 31.0 CSV retrieval, SHA256, exact source readback
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python -m career_kb.onet_ci_acquire \
+            --source-dir "$RUNNER_TEMP/ualp-onet31/sources" \
+            --report-dir "$RUNNER_TEMP/ualp-onet31/receipt" \
+            --commit-sha "$GITHUB_SHA"
+      - name: Preserve evidence as bounded artifact even when blocked
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ualp-onet31-one-shot-source-lock-evidence
+          path: |
+            ${{ runner.temp }}/ualp-onet31/receipt/
+            ${{ runner.temp }}/ualp-onet31/sources/
+          retention-days: 7
+          if-no-files-found: warn
