@@ -618,3 +618,13 @@ ROLLBACK_THIS_BLOCK: leave GitHub branch unmerged or revert 007 documents; safe 
 PAID_API_BUDGET: 0; no extra agents/Codex/API. STOP_CONDITIONS: role/DB mismatch, branch drift, unsupported restore test, risk of paid spend, destructive migration before owner approval.
 REQUIRED_NEXT_EVIDENCE: real PostgreSQL 18 dry-run of 007 hosted authorization guard against TEST clone, matched pre/post original data, reviewed source and migration receipt.
 AUTHORIZATION_END: TEST backup+readiness checkpoint; active TEST migration not yet applied.
+
+
+#### UALP-CAREER-KB-007 — final Neon TEST schema release receipt (2026-11-18)
+STATUS: NEON_TEST_SCHEMA_APPLIED_AND_VERIFIED. Exact SQL source commit `affa7e1334a412e2141bae2d1e8b69349b04551c` and Git blob `d1ed0224ce402f197ca88b8b2929b557b2bcc1be`.
+TARGET: existing Neon Free `ualp_test` active TEST; main is a Neon TEST branch, not production. Created fresh backup branch with row/digest readback 10/10 PASS; separate rehearsal clone of backup proved P0001 unarmed gate negative and same 7-table DDL PASS, with no impact to legacy rows.
+ACTIVE: one 12-statement gated and atomic Neon transaction installed **7 empty Career KB tables and 1 index** (17 total). After installation 10/10 baseline row/digest equality relative to backup PASS: 2 assessment runs, 81 responses, 33 saved scores unchanged. Career snapshot/role/skill/rating row counts all zero.
+EXPLICIT NOT_RUN: destructive restoration/replacement of active TEST from backup; real-source 40-row Neon import; Vercel/Android runtime, owner UAT, PROD. CI writer remains localhost-only; no bypass to remote Neon permitted.
+ROLLBACK: preserve verified pre-migration backup, do not apply disposable-only DROP to Neon; avoid deleting any populated Career tables. No active legacy data changed.
+COST: no new paid API or paid service; Free Neon branch capacity used, two extra branches retained until separately authorized cleanup.
+NEXT_BOUNDARY: separately bounded guarded, exact source-backed import into existing empty Career KB tables and readback, after reviewing suitable TEST transport. STOP.

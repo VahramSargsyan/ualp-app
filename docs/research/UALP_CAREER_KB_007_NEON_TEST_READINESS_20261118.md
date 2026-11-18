@@ -1,7 +1,7 @@
 # UALP-CAREER-KB-007 — Neon TEST release preparation checkpoint
 Date: 2026-11-18
 MODE: IMPLEMENT_FEATURE / GUARDED_TEST_MIGRATION_PREPARATION
-STATUS: PREFLIGHT_PASS / BACKUP_READBACK_PASS / NEON_TEST_SCHEMA_NOT_APPLIED
+STATUS: NEON_TEST_SCHEMA_APPLIED / LIVE_READBACK_PASS
 BASE_GITHUB_COMMIT: c92bce785f3a66ff164ea89bd6be1ed768dda84b
 GITHUB_BRANCH: feature/ualp-career-kb-neon-test-schema-guard
 SOURCE: UALP Career KB-006 exact proven PostgreSQL 18 import commit e15a6f17de92ab0a5af3f377c577b788d6470209, run 44349260235 (2 PASS). Backward-compatible with existing UALP-MVP-001 SQL schema; no app/Neon writer integration.
@@ -37,3 +37,31 @@ OWNER: Vahram. USER_REQUEST: "Начнем" after separately identified guarded 
 - New candidate SQL has only static equivalence verification until it executes on a disposable PostgreSQL 18 test branch; do not claim hosted PG E2E from 006 applies to this new authorization header.
 - User TEST is not a blank scratch space (2 completed assessment runs with associated responses and scores).
 - Next gate: dry-run 007 candidate on an isolated Neon branch, prove tested restore/rollback; after exact-source approval decide whether to apply the migration and subsequently import public O*NET source data.
+
+
+## Exact execution receipt — Neon UALP TEST, 2026-11-18
+**STATUS: NEON_TEST_SCHEMA_APPLIED / LIVE_READBACK_PASS**
+
+### Source and test
+- GitHub exact SQL source commit: `affa7e1334a412e2141bae2d1e8b69349b04551c`, file `docs/migration_candidates/UALP_CAREER_KB_007_NEON_TEST_SCHEMA_GUARDED.sql`, Git blob SHA `d1ed0224ce402f197ca88b8b2929b557b2bcc1be`.
+- Seven `CREATE TABLE` definitions and the one index from Career KB 004 verified **textually identical** to original approved disposable schema body. The difference is the separate Neon TEST-only authorization gate.
+- Owner authorized beginning the protected Neon TEST migration after the independently verified 006 real PostgreSQL E2E. Target: UALP-only Neon Free `ualp_test` database, current default branch `main` (this is UALP TEST, not PROD).
+- TEST active before: 10 legacy base tables, 0 Career KB tables, `UALP-POSTGRES-TEST-v0.1`.
+- Fresh copy-on-write backup branch: `ualp-career-kb-007-pre-migration-backup-20261118` with 10 tables. Table-by-table legacy row counts and content digests **10/10 MATCH** both just after copying and after hosted migration. The backup is retained, not merged and not modified.
+- Dedicated rehearsal clone (derived from backup): `ualp-career-kb-007-schema-rehearsal-20261118`. Before authorization, exact `DO` gate rejected with SQLSTATE `P0001`; afterward, one Neon transaction installed 7 Career KB tables + index with zero legacy data changes.
+- Postflight rehearsal clone: 17 tables, 7 Career KB, 10 legacy table digests identical to active TEST/backup; no Career KB source rows inserted.
+- Active Neon TEST installation: **one successful atomic 12-statement transaction**, explicit session-only `ualp.career_neon_test_schema_gate=APPROVED_UALP_NEON_TEST_ADD_ONLY_007`, verified DB/role/schema, lock timeout, statement timeout, 7 CREATE TABLE and 1 CREATE INDEX. No DROP/DELETE/UPDATE/INSERT statements on user data.
+- Active postflight: **17 total tables, 7 Career KB tables (all EMPTY)**. Exactly 10 original legacy row counts and content digests unchanged compared with the fresh backup.
+- Active original aggregate rows: schema version 1, forms 2, items 81, options 10, scales 33, links 102, scoring rules 33, assessment runs 2, responses 81, saved scale scores 33. No personal content or credentials copied to GitHub.
+- Active Career KB constraints: PostgreSQL catalog reports primary keys, source unique constraints, FKs, and CHECK constraints for the new tables; explicit source index installed. Legacy schema not altered.
+- Branch schema diff against backup confirms additive new Career KB definitions only, consistent with exact source SQL.
+
+### Security, recovery and remaining gate
+- **No imported O*NET rows in Neon TEST yet.** Current 006 transactional importer explicitly permits localhost-only CI; its network restriction was NOT weakened and has not been used on Neon. Any hosted 40-row source import requires a newly guarded TEST-specific transfer/SQL adapter, direct source digest and separate readback gate.
+- No PROD, GitHub main, PR #7, Vercel deployment, Android runtime, public career API, scoring or career-fit feature.
+- Rollback for the schema: it is additive and empty. Do **not** run the 004 disposable-only DROP script on Neon. Retaining empty additive tables is the safest recovery until a specifically authorized cleanup. A separate restored-branch replacement requires explicit owner approval.
+- **Backup copy/readback: PASS.** Actual destructive recovery replacing TEST from the backup: **NOT_RUN**. Do not represent matched branch readback as a completed recovery drill.
+- New app TEST URL: **NOT_APPLICABLE**; existing owner Vercel Preview unchanged. End-to-end app/owner UAT is **NOT_RUN**.
+- Free resources: one COW backup branch and one clone used, existing Free project, no paid API or new paid service; temporary rehearsal branch intentionally retained pending future authorized cleanup.
+- NEXT_BOUNDARY: import only the 2 frozen O*NET technical pilot professions and 40 source measurements into the **7 existing empty Neon TEST tables** through a TEST-only allowlisted source importer with atomic/idempotent readback, not by bypassing the localhost-only CI writer. Confirm whether the technical pilot should be exposed to the product UI separately.
+- AUTHORIZATION_END: guarded Neon TEST schema installation and postflight evidence, STOP.
