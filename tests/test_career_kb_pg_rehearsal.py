@@ -103,13 +103,20 @@ def insert_original_synthetic_run(conn):
         VALUES (%s,'CI-SCALE',0,1,'CI-MEAN-v1')""", (run,))
 
 
-def reject(conn, label, statement, params=None, contains=None):
-    """Each invalid mutation is a separate, implicitly rolled-back statement."""
+def reject(conn, label, statement, params=None, *, contains=None,
+           sqlstate=None, exact_constraint=None):
+    """Reject for the intended reason, not an unrelated earlier uniqueness guard."""
     with pytest.raises(psycopg.Error) as caught:
         conn.execute(statement, params)
     if contains:
         assert contains.lower() in str(caught.value).lower(), (label, str(caught.value))
-    print(f"NEGATIVE_PASS {label}: {caught.value.sqlstate}", flush=True)
+    if sqlstate:
+        assert caught.value.sqlstate == sqlstate, (label, caught.value.sqlstate)
+    if exact_constraint:
+        assert caught.value.diag.constraint_name == exact_constraint, (
+            label, caught.value.diag.constraint_name, exact_constraint)
+    print(f"NEGATIVE_PASS {label}: {caught.value.sqlstate} "
+          f"constraint={caught.value.diag.constraint_name}", flush=True)
 
 
 def add_snapshot(conn, snapshot_id="SNAP-CI-31"):
@@ -225,6 +232,24 @@ def test_disposable_career_schema_and_rollback():
         assert conn.execute("SELECT count(*) FROM ualp_career_requirements WHERE evidence_status = 'OBSERVED'").fetchone()[0] == 39
         print("SEEDED_DATA_PASS", counts, flush=True)
 
+        # An extra synthetic competency makes each negative test use a fresh
+        # (snapshot, role, competency, scale) tuple. Otherwise an existing
+        # unique constraint masks the FK or rating guard under examination.
+        conn.execute("""INSERT INTO ualp_career_competencies
+            (competency_id,kind,provider_element_id)
+            VALUES ('CI-SKILL-NEG','ESSENTIAL_SKILL','TEST-FICTIONAL-NEG')""")
+        conn.execute("""INSERT INTO ualp_career_competency_versions
+            (competency_version_id,competency_id,snapshot_id,source_locale,label)
+            VALUES ('CI-SKILLV-NEG','CI-SKILL-NEG','SNAP-CI-31','en',
+                    'Synthetic negative-case competency')""")
+        constraints = dict(conn.execute("""SELECT conname, pg_get_constraintdef(oid)
+            FROM pg_constraint WHERE conrelid='ualp_career_requirements'::regclass""").fetchall())
+        scale_names = [name for name, rule in constraints.items()
+                       if 'REFERENCES ualp_career_scales' in rule]
+        source_record_names = [name for name, rule in constraints.items()
+                               if 'UNIQUE (snapshot_id, source_record_id)' in rule]
+        assert len(scale_names) == 1 and len(source_record_names) == 1
+
         # Every source relationship, rating bound and missingness is enforced in SQL.
         base_req = """INSERT INTO ualp_career_requirements
             (requirement_id,snapshot_id,occupation_version_id,
@@ -232,22 +257,29 @@ def test_disposable_career_schema_and_rollback():
              scale_minimum,scale_maximum,raw_value,evidence_status,
              source_updated_at,domain_source)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'08/2026','CI_SYNTHETIC')"""
-        def args(tag, *, snap="SNAP-CI-31", occ="CI-OCCV-0", competency="CI-SKILLV-0", scale="IM", minimum=1, maximum=5, value="2.5", status="OBSERVED", record=None):
+        def args(tag, *, snap="SNAP-CI-31", occ="CI-OCCV-0", competency="CI-SKILLV-NEG", scale="IM", minimum=1, maximum=5, value="2.5", status="OBSERVED", record=None):
             return (f"CI-NEG-{tag}", snap, occ, competency, record or f"CI-NEG-SOURCE-{tag}",
                     scale, minimum, maximum, value, status)
 
-        reject(conn, "unknown_competency_fk", base_req, args("FK", competency="CI-SKILLV-UNKNOWN"))
-        reject(conn, "invalid_rating_above_scale", base_req, args("HI", value="6"))
-        reject(conn, "observed_requires_value", base_req, args("NULL", value=None))
-        reject(conn, "suppressed_requires_null", base_req, args("SUPPRESS", status="SUPPRESSED", value="0"))
-        reject(conn, "scale_bounds_composite_fk", base_req, args("SCALE", maximum=6))
+        reject(conn, "unknown_competency_fk", base_req,
+               args("FK", competency="CI-SKILLV-UNKNOWN"), sqlstate="23503")
+        reject(conn, "invalid_rating_above_scale", base_req,
+               args("HI", value="6"), sqlstate="23514")
+        reject(conn, "observed_requires_value", base_req,
+               args("NULL", value=None), sqlstate="23514")
+        reject(conn, "suppressed_requires_null", base_req,
+               args("SUPPRESS", status="SUPPRESSED", value="0"), sqlstate="23514")
+        reject(conn, "scale_bounds_composite_fk", base_req,
+               args("SCALE", maximum=6), sqlstate="23503",
+               exact_constraint=scale_names[0])
         reject(conn, "duplicate_source_record_rejected", base_req,
-               args("DUP", record="CI-SOURCE-0-0-IM"))
+               args("DUP", record="CI-SOURCE-0-0-IM"), sqlstate="23505",
+               exact_constraint=source_record_names[0])
         add_snapshot(conn, "SNAP-CI-OTHER")
         reject(conn, "different_snapshot_occupation_fk", base_req,
-               args("XSNAP", snap="SNAP-CI-OTHER"))
+               args("XSNAP", snap="SNAP-CI-OTHER"), sqlstate="23503")
         reject(conn, "referenced_snapshot_delete_restricted",
-               "DELETE FROM ualp_career_snapshots WHERE snapshot_id='SNAP-CI-31'")
+               "DELETE FROM ualp_career_snapshots WHERE snapshot_id='SNAP-CI-31'", sqlstate="23001")
         assert rows_fingerprint(conn)[0] == baseline_hash
         # No unexpected writes survived the negatives.
         assert conn.execute("SELECT count(*) FROM ualp_career_requirements").fetchone()[0] == 40

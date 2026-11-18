@@ -1,4 +1,5 @@
 name: UALP Career KB isolated PostgreSQL rehearsal once
+# Focused second evidence cycle: validate precise PG FK/unique constraint identity.
 on:
   push:
     branches:
