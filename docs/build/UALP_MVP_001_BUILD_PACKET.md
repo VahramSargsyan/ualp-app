@@ -646,3 +646,14 @@ OUT_OF_SCOPE: changing 10 legacy tables/response values, schema changes, DDL dro
 MIGRATION/ROLLBACK: schema already installed via 007; 008 has no schema migration. Before commit SQL transaction aborts on error; after successful commit keep immutable source rows and separate pre-import COW branch, do not DROP populated tables; destructive removal or branch restore requires separate owner decision.
 COST: existing Neon Free branch capacity only; no new paid service, no Codex, no GitHub Actions.
 STOP: exact GitHub code/receipt checkpoint and real Neon TEST outcome; no automatic next block/PROD. NOT_RUN Vercel runtime, owner UAT and restore branch replacement.
+
+
+#### UALP-CAREER-KB-008 — final exact Neon TEST source import receipt (2026-11-18)
+STATUS: **REAL_NEON_TEST_ONET31_IMPORT_PASS**. Exact adapter commit `26248f300c614be0d979bb6f3c067b1969d8a907`, branch `feature/ualp-career-kb-008-neon-test-import`, official source ZIP sha256 4d010c11479112c99fb44bd41890484259916b9093b83c3c614a77ab3c620f5d, locked plan sha256 78d8aed89a505bf04d4d5d73e609b327bede800694a89a15bab50965a6ec449d.
+TEST_LEVEL: Python 13 pytest PASS; Neon PostgreSQL 18 isolated clone: negative gate P0001, 2 injected atomic-abort tests, INSERTED, idempotent NOOP, deliberately corrupted source row refused/transaction rolled back; original legacy 10 tables unchanged.
+BACKUP: `ualp-career-kb-008-pre-import-backup-20261118`, full Neon branch from pre-import active TEST; 17 total tables and seven empty Career KB tables verified, original 10-table data digests 10/10 match. Restore/swap NOT_RUN.
+ACTIVE UALP Neon Free TEST: one atomic 19-step exact-source transaction inserted 1 source snapshot, 2 professions+versions, 10 competencies+versions, 2 scales, 40 source skill measurements (39 OBSERVED, 1 SUPPRESSED/null). In-transaction exact row source readback PASS. Independent after-commit readback: 7/7 Career KB table counts and hashes exactly match the rehearsal clone; 10/10 legacy tables unchanged vs fresh preimport backup. Active full replay -> NOOP.
+SOURCE CODE: `career_kb/neon_test_import_adapter.py`; original localhost-only 006 writer NOT CHANGED, SQL schema 007 NOT CHANGED, no source ZIP or raw measurement payload committed to public GitHub, no secrets.
+MIGRATION_THIS_BLOCK: none; schema in place since 007. ROLLBACK: transaction abort until commit; postcommit do not DROP populated tables, preserve preimport Neon backup. Destructive restore requires independent owner authorization.
+NOT_RUN: user-facing Vercel/Android runtime, Career KB API/read-only UI, owner UAT, PROD, restoring active TEST by overwriting a branch. No new TEST app URL; PR #7 and GitHub main untouched.
+FINAL_RECEIPT: docs/research/UALP_CAREER_KB_008_NEON_TEST_REAL_IMPORT_RECEIPT_20261118.md. AUTHORIZATION_END: STOP.
