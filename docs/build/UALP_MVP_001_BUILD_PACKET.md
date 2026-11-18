@@ -518,3 +518,24 @@ EVIDENCE: GitHub run/steps/logs, exact 3 CSV digest and independent recipient ZI
 NOT_RUN: Neon/PostgreSQL writes, webapp/Android UI, owner UAT, PROD. Expected because zero runtime files or schema changed.
 ROLLBACK: separate documentation experiment only; owner TEST PR #7 unchanged; no migration.
 AUTHORIZATION_END: this run/verification source-lock block finished; STOP, no automatic database import or migration.
+
+
+### UALP-CAREER-KB-004 — proposed PostgreSQL source catalog import (2026-11-18)
+
+CAPABILITY_ID: UALP-CAREER-KB-004 / CAREER_KB_SAFE_IMPORT_DESIGN
+USER_RESULT: Additive source-backed PostgreSQL Career KB schema candidate and deterministic offline real-source import plan for two verified O*NET occupations, without touching existing respondent data or online TEST.
+WORKFLOW_MODE: IMPLEMENT_FEATURE (offline planner) + migration design only; RISK_CLASS: L2 offline source/provenance, L3 FUTURE schema execution (NOT AUTHORIZED / NOT_RUN).
+BASE_COMMIT: b9d5c438c2f14e3136c88d778e393f3c5995f1eb
+OWNER_BRANCH: feature/ualp-career-kb-import-plan-only; OWNER / TEST: Vahram, local source-locked isolated files; active Draft PR #7 remains separate.
+CANONICAL: frozen O*NET Database 31.0 official CSV artifact run 44322510909 and github source_lock.json; 1016 occupation, 18200 essential-skills, 33 scales source records.
+SCOPE: read-only career_kb/import_plan.py, focused local tests, two gated candidate SQL files under docs/migration_candidates, migration design documentation, Build Packet entry. No real source ZIP committed publicly.
+OUT_OF_SCOPE: APPLY_SCHEMA, PostgreSQL writer/data ingestion, Neon TEST/PROD mutation, Vercel/Android, new endpoint, RIASEC/ICAR scoring, user profiles, job Fit/Readiness and Armenia market inference, extra CI/GitHub Actions.
+SHARED_HOTSPOTS: existing migrations/001_initial_postgres_test.sql and runtime /api/profile remain untouched; new proposed career_ tables are isolated.
+SQL/MIGRATION: candidate SQL not automatically runnable. Requires explicitly armed disposable-test-only session gate, backup and separate approval. Rollback script also gated and refuses nonempty tables. A populated Neon TEST import requires independently approved additive migration with backup, transactional idempotency and specific rollback.
+SOURCE_READBACK: real original ZIP SHA256 4d010c11479112c99fb44bd41890484259916b9093b83c3c614a77ab3c620f5d; exact source manifest with three SHA256 values confirmed. Readonly import JSON plan SHA256 78d8aed89a505bf04d4d5d73e609b327bede800694a89a15bab50965a6ec449d.
+EXPECTED_SOURCE_ROWS: 2 occupations, 10 unique Essential Skills, 2 source scales (IM and LV), 40 requirements = 39 observed + 1 suppressed/null. Row-level source updatedAt 08/2024 or 08/2026 preserved.
+ACCEPTANCE_EVIDENCE: 23 focused local pytest PASS (existing offline reader 12 + import planner 11 including original artifact); Python compile PASS; real source SHA/CRC/readback PASS. SQL structural guard check PASS; SQL execution against real PostgreSQL NOT_RUN. No direct mobile or authenticated TEST runtime checks.
+ROLLBACK_THIS_BLOCK: revert isolated commit only, no persisted data changes. Candidate rollback SQL is test-only and unexecuted.
+PAID_API_BUDGET: 0; EXECUTOR: current assistant; no additional executors; no GitHub Actions triggered under previous one-time approval.
+REPAIR_LIMIT: up to 2 focused cycles. STOP_CONDITIONS: new DB/scheme ownership, migration or full import, paid infra, explicit end of scope, source mismatch, unverified runtime.
+AUTHORIZATION_END: commit/receipt, STOP. NEXT_BOUNDARY: separately authorized ephemeral PostgreSQL migration/rollback rehearsal then separate Neon TEST approval, not automatic.
