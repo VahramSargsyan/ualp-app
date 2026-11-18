@@ -1,4 +1,5 @@
 name: UALP Career KB exact-source transactional import disposable PG E2E
+# Targeted repair cycle 1: match exact remote-DB fence error capitalization in pytest.
 
 on:
   push:

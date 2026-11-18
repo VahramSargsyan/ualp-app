@@ -185,7 +185,7 @@ def test_real_postgres_transactionality():
         print("PREEXISTING_CONFLICT_PASS / original_source_restored")
 
         # Wrong environment must fail *before* DB connection attempts.
-        with pytest.raises(CareerImportError, match="only 127.0.0.1"):
+        with pytest.raises(CareerImportError, match=r"Only 127[.]0[.]0[.]1"):
             from career_kb.transactional_import import local_ci_destination
             old_url = os.environ["UALP_CI_DATABASE_URL"]
             try:
