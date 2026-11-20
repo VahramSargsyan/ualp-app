@@ -23,7 +23,7 @@ from webapp.riasec_manifest import (
 
 from webapp.owner_session import COOKIE_NAME, SESSION_SECONDS, issue_session, valid_session
 
-APP_VERSION = "0.5.1-career-kb-readonly-test"
+APP_VERSION = "0.5.2-career-kb-ru-compact-test"
 ENABLED_FORM = "UALP_WV21_RU_LIKERT"
 CI_SYNTHETIC_FORM = "CI_RIASEC_60_SYNTHETIC"
 OWNER_RIASEC_FORM = "ONET_SHORT_60_DIGITAL"
