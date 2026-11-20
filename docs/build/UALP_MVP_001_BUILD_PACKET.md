@@ -676,3 +676,24 @@ BUSINESS BOUNDARY: no score normalization, no suitability %, no recommendations 
 PAID API: 0. No extra agents, GitHub Actions or paid hosting created.
 RECEIPT: docs/research/UALP_CAREER_KB_009_OWNER_READ_UI_RECEIPT_20261118.md
 STOP: require existing Vercel project access then separately guarded exact Preview deploy and owner acceptance; no PROD.
+
+
+### UALP-CAREER-KB-010 — owner-accepted UI improvement candidate (2026-11-20)
+
+CAPABILITY_ID: UALP-CAREER-KB-010 / RU_TRANSLATIONS_COMPACT_O_NET_SCALES
+MODE: IMPLEMENT_FEATURE (owner-approved bounded UI polish after 009 mobile screenshot acceptance).
+OWNER_RESULT: Show O*NET 31.0 original English skill names plus fixed Russian UI translations, two decimals, semantically accurate Importance [1,5] and Level [0,7] native meters with different styles, SUPPRESSED/null without fabricated zero, compact readable mobile cards.
+SOURCE_BASE: 4d162cf7d97a36bbe28a2666382886a99c8bcd9f
+EXACT_FEATURE_COMMIT: 05fe79dcd062a64a8bf6bc17c1a51b461c25b48b
+BRANCH: feature/ualp-career-kb-010-ru-compact-ui; OWNER: Vahram; TEST: existing connected UALP Vercel Hobby Preview.
+IN_SCOPE: embedded owner-only Career KB JS/CSS in webapp/index.html, runtime version marker in webapp/main.py, synthetic JS UI smoke; documentation receipt.
+OUT_OF_SCOPE: REST API modifications, data migrations, Neon writes, career recommendation, suitability percentages, any profile-to-occupation scoring, app/PROD/main merge, other UALP screens/legacy tests.
+SOURCE: 10 exact official O*NET English labels + 2.A. IDs verified by read-only SQL from the existing UALP TEST; translations are explicitly UALP display labels, not official O*NET translations. The original API and source-lock hashes are unchanged. CSS and source formatting operate only client-side.
+TESTS: Node 22 `node --check` PASS; Node synthetic DOM/browser-API smoke on new snippet and marker-wrapped HTML PASS, including unauthed deny, role open, 10 labels, exact range and raw meters, 2dp comma, SUPPRESSED/no meter, tampered label/range/raw numeric rejects; GitHub exact source readback PASS. Full app pytest/real protected HTTP/Android owner UAT NOT_RUN.
+VERCEL: GitHub combined status on feature SHA `05fe79dcd062a64a8bf6bc17c1a51b461c25b48b` shows Vercel SUCCESS (Deployment has completed), see https://vercel.com/vahram-sargsyan/ualp-app/ETu1XQhodxaGyF3xwFJBwrSk2spW. Preview hostname from matching GitHub Vercel check: ualp-app-git-feature-ualp-career-kb-010-32ee15-vahram-sargsyan.vercel.app. External HTTP inspection failed; no runtime API, signed session or visual UI PASS claimed.
+TEST_VERSION: 0.5.2-career-kb-ru-compact-test.
+MIGRATION/ROLLBACK: no DB migration and no installation package. Revert isolated branch; previous owner-tested 009 Preview remains a known UI fallback. Pre-existing 2 assessments / 81 responses / 33 scale scores and 40 Career KB measurements unchanged.
+COST/EXECUTOR: zero paid APIs/services, no extra agents/Codex or manual GitHub Actions runs. Git-linked Hobby Preview deployment observed.
+OWNER_ACCEPTANCE: open exact 010 Preview, confirm footer v0.5.2; check 2 professions, Russian + original English, separate min/max meter displays, SUPPRESSED/no meter and navigation. Pending; stop without further automatic feature rollout.
+EVIDENCE: docs/research/UALP_CAREER_KB_010_RU_COMPACT_UI_RECEIPT_20261120.md.
+AUTHORIZATION_END: after owner TEST visual feedback, STOP.
